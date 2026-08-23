@@ -1,7 +1,7 @@
 {
   "name": "taildesk",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Tableau de bord Tailscale - Taildesk",
   "scripts": {
     "dev": "tauri dev",
