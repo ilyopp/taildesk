@@ -66,6 +66,7 @@ const ICONS = {
 
 let query = "";
 let lastStatus = null;
+let appVersion = "";
 
 /* ------------------------------------------------------------ utilitaires */
 
@@ -185,7 +186,7 @@ function render(st) {
   els.tailnetSub.textContent =
     st.magicdns_suffix ? `tailnet · ${st.magicdns_suffix}` : "tailnet";
   const tsShort = (st.version || "").split("-")[0];
-  els.versionText.textContent = `BrainConnect 0.1.0 · tailscale ${tsShort}`;
+  els.versionText.textContent = `BrainConnect ${appVersion} · tailscale ${tsShort}`;
 
   if (!running) {
     if (st.backend_state === "NeedsLogin" || st.backend_state === "NeedsMachineAuth") {
@@ -1324,6 +1325,10 @@ document.addEventListener("visibilitychange", () => {
 
   window.BC.setLang(stored);
   els.optLang.value = stored;
+
+  if (Tauri && Tauri.app) {
+    try { appVersion = await Tauri.app.getVersion(); } catch {}
+  }
 
   await refresh();
 
