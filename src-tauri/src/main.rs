@@ -21,7 +21,7 @@ fn get_default_lang() -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     if let Some(dir) = exe.parent() {
         if let Ok(s) = std::fs::read_to_string(dir.join("language.txt")) {
-            if s.contains("rench") {
+            if s.contains("rench") || s.trim() == "1036" {
                 return Ok("fr".into());
             }
             return Ok("en".into());
