@@ -1,0 +1,13 @@
+{
+  "name": "brainconnect",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tableau de bord Tailscale — BrainConnect",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

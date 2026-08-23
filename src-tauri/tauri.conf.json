@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BrainConnect",
+  "version": "0.1.0",
+  "identifier": "com.brainconnect.app",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "BrainConnect",
+        "width": 1020,
+        "height": 680,
+        "minWidth": 780,
+        "minHeight": 540,
+        "center": true,
+        "backgroundColor": "#0e0e0f"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob: http://127.0.0.1:*; style-src 'self'; script-src 'self'; media-src http://127.0.0.1:*"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "icon": ["icons/icon.ico", "icons/32x32.png", "icons/128x128.png"],
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "languages": ["English", "French"],
+        "displayLanguageSelector": true,
+        "installerHooks": "./windows/hooks.nsi"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/ilyopp/brainconnect/releases/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2MzRENUEyMTJENkFCNjQKUldSa3E5WVNvdFUwNWpxYUVzekFMR2NCNWtqeS9kM0wzVC94bmdRZS93TXRSTlhNV1JSUk1OWGgK"
+    }
+  }
+}

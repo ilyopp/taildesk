@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrainConnect</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+
+    <header class="topbar">
+      <div class="brand">
+        <img src="assets/logo.png" alt="" class="brand-logo" draggable="false" />
+        <div class="brand-text">
+          <h1>BrainConnect</h1>
+          <span id="tailnet-sub">Tailnet…</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-view="list" title="List view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="0.5" fill="currentColor"/><circle cx="4" cy="12" r="0.5" fill="currentColor"/><circle cx="4" cy="18" r="0.5" fill="currentColor"/></svg>
+            <span data-i18n="nav.list">List</span>
+          </button>
+          <button class="tab-btn" data-view="net" title="Map view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="5" r="1.7"/><circle cx="19" cy="5" r="1.7"/><circle cx="5" cy="19" r="1.7"/><circle cx="19" cy="19" r="1.7"/><path d="M6.3 6.3 10 10m7.7-3.7L14 10M6.3 17.7 10 14m7.7 3.7L14 14"/></svg>
+            <span data-i18n="nav.map">Map</span>
+          </button>
+        </div>
+        <button id="btn-refresh" class="btn ghost icon-only" title="Refresh now">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
+        </button>
+        <button id="btn-panel" class="btn ghost icon-only" title="Tailscale options">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="banner" class="banner hidden"></div>
+
+    <section id="view-list">
+      <div class="toolbar">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+          <input id="search" type="text" data-i18n-ph="search.placeholder" placeholder="Search a device or an IP…" spellcheck="false" autocomplete="off" />
+        </div>
+      </div>
+
+      <main id="content">
+        <p class="loading-note" data-i18n="loading">Connecting to tailnet…</p>
+      </main>
+    </section>
+
+    <section id="view-net" class="view-net hidden">
+      <canvas id="net-canvas"></canvas>
+      <div class="net-filter" role="group">
+        <button class="nf-btn active" data-filter="all" data-i18n="filter.all">All</button>
+        <button class="nf-btn" data-filter="online" data-i18n="filter.online">Online</button>
+        <button class="nf-btn" data-filter="offline" data-i18n="filter.offline">Offline</button>
+      </div>
+      <div id="net-tip" class="net-tip hidden"></div>
+      <div id="net-empty" class="net-empty hidden">
+        <img src="assets/logo.png" alt="">
+        <p data-i18n="net.empty">No devices to show on the map.</p>
+      </div>
+    </section>
+
+    <footer class="statusbar">
+      <span id="state-dot" class="dot off"></span>
+      <span id="status-text"></span>
+      <span class="spacer"></span>
+      <span id="updated-at"></span>
+      <span class="sep"></span>
+      <span id="version-text"></span>
+    </footer>
+
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <div id="backdrop" class="backdrop hidden"></div>
+
+  <aside id="panel" class="panel">
+    <div class="panel-head">
+      <h2>Tailscale</h2>
+      <button id="panel-close" class="btn ghost icon-only" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+
+    <section class="panel-sec">
+      <h3 data-i18n="p.conn">Connection</h3>
+      <div class="conn-row">
+        <span id="conn-text" class="conn-text"></span>
+        <button id="btn-conn" class="btn ghost conn-btn"></button>
+      </div>
+      <p class="hint" id="panel-version"></p>
+    </section>
+
+    <section class="panel-sec">
+      <h3 data-i18n="p.exit">Exit node</h3>
+      <select id="exit-select">
+        <option value=""></option>
+      </select>
+      <p class="hint" data-i18n="exit.hint">Route this PC's Internet traffic through a tailnet device.</p>
+    </section>
+
+    <section class="panel-sec">
+      <h3 data-i18n="p.settings">Settings</h3>
+      <div class="set-row">
+        <label class="set-label" for="opt-lang" data-i18n="set.lang">Language</label>
+        <select id="opt-lang">
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+        </select>
+      </div>
+      <label class="check-row">
+        <input type="checkbox" id="opt-rdp-embedded" checked />
+        <span data-i18n="set.embeddedRdp">Built-in remote desktop (in-app)</span>
+      </label>
+      <p class="hint" data-i18n="set.rdpHint">Disabled: opens the Windows Remote Desktop client (mstsc).</p>
+    </section>
+
+    <section class="panel-sec">
+      <h3 data-i18n="p.diag">Network diagnostics</h3>
+      <p class="hint" data-i18n="diag.hint">Test UDP, IPv4/IPv6, NAT type and DERP relay latency.</p>
+      <button id="btn-netcheck" class="btn block" data-i18n="diag.run">Run diagnostics</button>
+      <div id="netcheck-out"></div>
+    </section>
+
+    <section class="panel-sec">
+      <h3 data-i18n="set.updatesH">Updates</h3>
+      <label class="check-row">
+        <input type="checkbox" id="opt-updates" checked />
+        <span data-i18n="set.updates">Automatic updates</span>
+      </label>
+      <button id="btn-upd" class="btn block" data-mode="check" data-i18n="set.checkNow">Check for updates</button>
+      <span id="upd-line"></span>
+    </section>
+  </aside>
+
+  <div id="row-menu" class="row-menu hidden"></div>
+
+  <div id="rdp" class="rdp hidden">
+    <div class="rdp-top">
+      <span id="rdp-dot" class="dot warn"></span>
+      <b id="rdp-title">Remote desktop</b>
+      <span id="rdp-state"></span>
+      <button id="rdp-close" class="btn ghost icon-only" data-i18n-title="rdp.closeTip" title="Close session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div id="rdp-stage" class="rdp-stage" tabindex="0">
+      <form id="rdp-auth" class="rdp-auth">
+        <h3 data-i18n="rdp.formTitle">Remote desktop connection</h3>
+        <p class="hint"><span data-i18n="rdp.credsHint">Credentials of an authorized session on</span> <b id="rdp-auth-host"></b></p>
+        <input id="rdp-user" type="text" data-i18n-ph="rdp.user" autocomplete="off" spellcheck="false" />
+        <input id="rdp-pass" type="password" data-i18n-ph="rdp.pass" />
+        <button type="submit" class="btn block rdp-submit" data-i18n="rdp.submit">Connect</button>
+        <p id="rdp-err" class="rdp-err"></p>
+      </form>
+      <img id="rdp-img" class="hidden" draggable="false" alt="" />
+    </div>
+  </div>
+
+  <script defer src="i18n.js"></script>
+  <script defer src="main.js"></script>
+</body>
+</html>
