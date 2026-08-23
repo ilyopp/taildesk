@@ -1,4 +1,4 @@
-# BrainConnect
+# Taildesk
 
 A lightweight desktop dashboard for your Tailscale network - device list, animated
 network map, built-in RDP client, Taildrop & network diagnostics. Built with Rust + Tauri.
@@ -27,17 +27,17 @@ backend (~2 min); next ones are instant.
 
 ```bash
 export RUST_MIN_STACK=33554432
-export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/brainconnect.key
+export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/taildesk.key
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 npm run build
 ```
 
 Generated artifacts:
 
-- Windows installer: `src-tauri/target/release/bundle/nsis/BrainConnect_0.1.0_x64-setup.exe`
+- Windows installer: `src-tauri/target/release/bundle/nsis/Taildesk_0.2.1_x64-setup.exe`
   (language picker EN/FR and install-directory page; the language chosen in the
   installer becomes the app's language on first launch)
-- Standalone executable: `src-tauri/target/release/brainconnect.exe`
+- Standalone executable: `src-tauri/target/release/taildesk.exe`
 
 The private key signs the update packages: keep it secret and don't lose it,
 otherwise future auto-updates can't be signed.
@@ -71,10 +71,12 @@ Can be turned off in Tailscale panel → Settings → Automatic updates.
 Checks hit this repository's releases:
 
 1. The endpoint lives in `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`)
-   and targets `https://github.com/ilyopp/brainconnect/releases/latest/download/latest.json`.
-2. Publish a GitHub Release (tag `vX.Y.Z`) attaching: the standalone `.exe`,
-   its `.sig` sidecar and a `latest.json` manifest - all three are produced by
-   `npm run build` under `src-tauri/target/release/bundle/`.
+   and targets `https://github.com/ilyopp/taildesk/releases/latest/download/latest.json`.
+2. Publish a GitHub Release (tag `vX.Y.Z`) attaching: the installer
+   `Taildesk_X.Y.Z_x64-setup.exe`, its `.sig` sidecar and a `latest.json`
+   manifest. The first two come from `npm run build` under
+   `src-tauri/target/release/bundle/nsis/`; `latest.json` lists the version,
+   release date, download URL and the signature contents.
 
 ### Built-in remote desktop notes
 
@@ -88,7 +90,7 @@ Checks hit this repository's releases:
 ## Project layout
 
 ```
-BrainConnect/
+Taildesk/
 ├── ui/                    # Frontend (static HTML/CSS/JS)
 │   ├── index.html         # markup with data-i18n attributes
 │   ├── i18n.js            # EN/FR dictionary + helpers

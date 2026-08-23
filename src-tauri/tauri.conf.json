@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "BrainConnect",
+  "productName": "Taildesk",
   "version": "0.2.0",
-  "identifier": "com.brainconnect.app",
+  "identifier": "com.taildesk.app",
   "build": {
     "frontendDist": "../ui"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "BrainConnect",
+        "title": "Taildesk",
         "width": 1020,
         "height": 680,
         "minWidth": 780,
@@ -40,7 +40,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/ilyopp/brainconnect/releases/latest/download/latest.json"
+        "https://github.com/ilyopp/taildesk/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2MzRENUEyMTJENkFCNjQKUldSa3E5WVNvdFUwNWpxYUVzekFMR2NCNWtqeS9kM0wzVC94bmdRZS93TXRSTlhNV1JSUk1OWGgK"
     }

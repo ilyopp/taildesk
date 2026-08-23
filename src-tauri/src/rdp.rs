@@ -450,7 +450,7 @@ fn build_config(username: &str, password: &str, width: u16, height: u16) -> Resu
         },
         domain: None,
         client_build: 100,
-        client_name: "BrainConnect".to_owned(),
+        client_name: "Taildesk".to_owned(),
         keyboard_type: KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,

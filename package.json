@@ -1,8 +1,8 @@
 {
-  "name": "brainconnect",
+  "name": "taildesk",
   "private": true,
   "version": "0.2.0",
-  "description": "Tableau de bord Tailscale - BrainConnect",
+  "description": "Tableau de bord Tailscale - Taildesk",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build"

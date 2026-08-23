@@ -175,7 +175,7 @@ function render(st) {
   lastStatus = st;
 
   const tsShort = (st.version || "").split("-")[0];
-  els.versionText.textContent = `BrainConnect ${appVersion} · tailscale ${tsShort}`;
+  els.versionText.textContent = `Taildesk ${appVersion} · tailscale ${tsShort}`;
 
   const running = st.backend_state === "Running";
   const online = st.peers.filter((p) => p.online);
@@ -1133,7 +1133,7 @@ function setRdpState(text, dotClass) {
 
 function openRdp(target) {
   RDP.target = target;
-  els.rdpTitle.textContent = `BrainConnect - ${target}`;
+  els.rdpTitle.textContent = `Taildesk - ${target}`;
   els.rdpAuthHost.textContent = target;
   els.rdpPass.value = "";
   els.rdpErr.textContent = "";

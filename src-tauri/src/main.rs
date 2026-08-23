@@ -631,5 +631,5 @@ fn main() {
             updater_install
         ])
         .run(tauri::generate_context!())
-        .expect("Erreur au lancement de BrainConnect");
+        .expect("Erreur au lancement de Taildesk");
 }

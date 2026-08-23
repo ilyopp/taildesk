@@ -1,4 +1,4 @@
-# BrainConnect
+# Taildesk
 
 Tableau de bord de bureau pour ton réseau Tailscale - liste des machines, carte
 réseau animée, client RDP intégré, Taildrop et diagnostics réseau. Rust + Tauri.
@@ -28,17 +28,17 @@ Le premier lancement compile le backend Rust (~2 min), les suivants sont instant
 
 ```bash
 export RUST_MIN_STACK=33554432
-export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/brainconnect.key
+export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/taildesk.key
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 npm run build
 ```
 
 Produits générés :
 
-- Installeur Windows : `src-tauri/target/release/bundle/nsis/BrainConnect_0.1.0_x64-setup.exe`
+- Installeur Windows : `src-tauri/target/release/bundle/nsis/Taildesk_0.2.1_x64-setup.exe`
   (sélecteur de langue EN/FR et page de dossier d'installation ; la langue choisie
   devient celle de l'application au premier démarrage)
-- Exécutable autonome : `src-tauri/target/release/brainconnect.exe`
+- Exécutable autonome : `src-tauri/target/release/taildesk.exe`
 
 La clé privée signe les paquets de mise à jour : garde-la secrète et ne la perds
 pas, sinon les mises à jour auto ne pourront plus être signées.
@@ -72,10 +72,12 @@ Désactivables dans Panneau Tailscale → Paramètres → Automatic updates.
 La vérification interroge les releases de ce dépôt :
 
 1. L'endpoint se trouve dans `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`)
-   et pointe vers `https://github.com/ilyopp/brainconnect/releases/latest/download/latest.json`.
-2. Publie une Release GitHub (tag `vX.Y.Z`) avec en pièces jointes : l'exécutable
-   `.exe` autonome, son `.sig` et un manifeste `latest.json` - les trois sont
-   produits par `npm run build` sous `src-tauri/target/release/bundle/`.
+   et pointe vers `https://github.com/ilyopp/taildesk/releases/latest/download/latest.json`.
+2. Publie une Release GitHub (tag `vX.Y.Z`) avec en pièces jointes : l'installeur
+   `Taildesk_X.Y.Z_x64-setup.exe`, son `.sig` et un manifeste `latest.json`.
+   Les deux premiers sortent de `npm run build` sous
+   `src-tauri/target/release/bundle/nsis/` ; le `latest.json` liste la version,
+   la date, l'URL de téléchargement et la signature.
 
 ### Notes sur le bureau à distance intégré
 
@@ -89,7 +91,7 @@ La vérification interroge les releases de ce dépôt :
 ## Structure
 
 ```
-BrainConnect/
+Taildesk/
 ├── ui/                    # Interface (HTML/CSS/JS statique)
 │   ├── index.html         # balises avec attributs data-i18n
 │   ├── i18n.js            # dictionnaire EN/FR + helpers
