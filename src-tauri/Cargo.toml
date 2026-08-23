@@ -1,6 +1,6 @@
 [package]
 name = "taildesk"
-version = "0.2.1"
+version = "0.2.2"
 description = "Tableau de bord Tailscale - Taildesk"
 edition = "2021"
 
