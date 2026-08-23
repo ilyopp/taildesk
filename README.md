@@ -1,14 +1,14 @@
 # BrainConnect
 
-A lightweight desktop dashboard for your Tailscale network — device list, animated
+A lightweight desktop dashboard for your Tailscale network - device list, animated
 network map, built-in RDP client, Taildrop & network diagnostics. Built with Rust + Tauri.
 
 > Version française : [README.fr.md](README.fr.md)
 
 ## Requirements
 
-- [Node.js](https://nodejs.org) (for the Tauri CLI) — `node -v`
-- [Rust](https://rustup.rs) — `cargo --version`
+- [Node.js](https://nodejs.org) (for the Tauri CLI) - `node -v`
+- [Rust](https://rustup.rs) - `cargo --version`
 - Tailscale installed and connected on the machine
 
 End users don't need any of these: the `Setup.exe` ships everything.
@@ -54,6 +54,7 @@ otherwise future auto-updates can't be signed.
 | Tailscale panel (settings button) | Connect/disconnect the tailnet (`tailscale up/down`), exit-node switch (`exit-node list` / `set --exit-node`), network diagnostics (`netcheck`: UDP, IPv4/IPv6, NAT, UPnP/PMP/PCP, DERP latencies), language, updates |
 | Device « ⋯ » menu | Remote desktop, Taildrop file transfer, copy MagicDNS name or IPv6 |
 | Built-in remote desktop | Full embedded RDP client (IronRDP): the remote screen renders inside the app with keyboard & mouse. Toggle in Panel → Settings; disabled it falls back to Windows mstsc |
+| Network switcher | Dropdown in Panel → Connection: lists the tailnets already signed in on this PC (`tailscale switch --list`) and switches between them instantly (`tailscale switch`). To add a network: sign in once from the Tailscale app or `tailscale login` |
 
 Data refreshes automatically every 10 seconds (no setting required).
 
@@ -72,7 +73,7 @@ Checks hit this repository's releases:
 1. The endpoint lives in `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`)
    and targets `https://github.com/ilyopp/brainconnect/releases/latest/download/latest.json`.
 2. Publish a GitHub Release (tag `vX.Y.Z`) attaching: the standalone `.exe`,
-   its `.sig` sidecar and a `latest.json` manifest — all three are produced by
+   its `.sig` sidecar and a `latest.json` manifest - all three are produced by
    `npm run build` under `src-tauri/target/release/bundle/`.
 
 ### Built-in remote desktop notes

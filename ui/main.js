@@ -1,7 +1,5 @@
 "use strict";
 
-/* BrainConnect — logique de l'interface */
-
 const Tauri = window.__TAURI__ ?? null;
 const invoke = Tauri ? Tauri.core.invoke : null;
 const t = (k, v) => window.BC.t(k, v);
@@ -15,7 +13,6 @@ const els = {
   statusText: document.getElementById("status-text"),
   updatedAt: document.getElementById("updated-at"),
   versionText: document.getElementById("version-text"),
-  tailnetSub: document.getElementById("tailnet-sub"),
   toast: document.getElementById("toast"),
 
   viewList: document.getElementById("view-list"),
@@ -35,6 +32,8 @@ const els = {
   btnNetcheck: document.getElementById("btn-netcheck"),
   netcheckOut: document.getElementById("netcheck-out"),
   rowMenu: document.getElementById("row-menu"),
+
+  tailnetSelect: document.getElementById("tailnet-select"),
 
   optRdp: document.getElementById("opt-rdp-embedded"),
   optLang: document.getElementById("opt-lang"),
@@ -68,19 +67,17 @@ let query = "";
 let lastStatus = null;
 let appVersion = "";
 
-/* ------------------------------------------------------------ utilitaires */
-
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
   );
 }
 
-function toast(msg) {
+function toast(msg, ms) {
   els.toast.textContent = msg;
   els.toast.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => els.toast.classList.remove("show"), 1800);
+  toast._t = setTimeout(() => els.toast.classList.remove("show"), ms || 1800);
 }
 
 async function copyText(text) {
@@ -128,8 +125,6 @@ function setStatus(dotClass, text) {
 function langLocale() {
   return window.BC.lang === "fr" ? "fr-FR" : "en-GB";
 }
-
-/* ------------------------------------------------------------- vue liste */
 
 function machineHtml(p) {
   const host = p.hostname || p.dns_name || "sans-nom";
@@ -179,14 +174,11 @@ function machineHtml(p) {
 function render(st) {
   lastStatus = st;
 
-  const running = st.backend_state === "Running";
-  const online = st.peers.filter((p) => p.online);
-  const offline = st.peers.filter((p) => !p.online);
-
-  els.tailnetSub.textContent =
-    st.magicdns_suffix ? `tailnet · ${st.magicdns_suffix}` : "tailnet";
   const tsShort = (st.version || "").split("-")[0];
   els.versionText.textContent = `BrainConnect ${appVersion} · tailscale ${tsShort}`;
+
+  const running = st.backend_state === "Running";
+  const online = st.peers.filter((p) => p.online);
 
   if (!running) {
     if (st.backend_state === "NeedsLogin" || st.backend_state === "NeedsMachineAuth") {
@@ -225,6 +217,7 @@ function render(st) {
         <small>${esc(t("empty.noneSub"))}</small>
       </div>`;
   } else {
+    const offline = st.peers.filter((p) => !p.online);
     if (online.length)
       html += `<div class="group"><p class="group-label">${esc(t("g.online"))}<span class="count">${online.length}</span></p>${online
         .map(machineHtml)
@@ -234,6 +227,7 @@ function render(st) {
         .map(machineHtml)
         .join("")}</div>`;
   }
+
   html += "</div>";
   els.content.innerHTML = html;
 
@@ -246,8 +240,6 @@ function render(st) {
   updateConnUI();
   netSync(st);
 }
-
-/* ---------------------------------------------------------------- actions */
 
 async function doPing(btn, row) {
   const lat = row.querySelector(".latency");
@@ -333,8 +325,6 @@ els.btnRefresh.addEventListener("click", async () => {
   els.btnRefresh.classList.remove("loading");
 });
 
-/* -------------------------------------------------------------- recherche */
-
 function applyFilter() {
   const q = query.trim().toLowerCase();
   for (const group of els.content.querySelectorAll(".group")) {
@@ -363,10 +353,6 @@ document.addEventListener("keydown", (e) => {
     els.search.focus();
   }
 });
-
-/* ==================================================================== */
-/*  Vue carte                                                           */
-/* ==================================================================== */
 
 const NODE_COLOR = "#e07a50";
 const OFFLINE_COLOR = "#4a5057";
@@ -493,6 +479,7 @@ function tick(dt) {
 
   for (const n of ns) {
     if (n === NET.drag) continue;
+
     n.vx += (NET.W / 2 - n.x) * 0.0025 * dt;
     n.vy += (NET.H / 2 - n.y) * 0.0038 * dt;
     n.vx *= friction;
@@ -562,33 +549,38 @@ function draw(time) {
     const alpha = nodeAlpha(n, time);
     const r = n.r * (online ? pulse : 1);
 
-    ctx.globalAlpha = alpha;
-    if (online) {
-      ctx.shadowColor = hexA(col, 0.5);
-      ctx.shadowBlur = 10;
-    }
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = "#131518";
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r * 0.42, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (n === NET.hover) {
-      ctx.strokeStyle = `rgba(231, 229, 225, ${0.55 * alpha})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, r + 4.5, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    drawNodeLabel(n, online, alpha);
-    ctx.globalAlpha = 1;
+    drawNode(n, r, col, alpha, online);
   }
+}
+
+function drawNode(n, r, col, alpha, online) {
+  const ctx = NET.ctx;
+  ctx.globalAlpha = alpha;
+  if (online) {
+    ctx.shadowColor = hexA(col, 0.5);
+    ctx.shadowBlur = 10;
+  }
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = "#131518";
+  ctx.beginPath();
+  ctx.arc(n.x, n.y, r * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (n === NET.hover) {
+    ctx.strokeStyle = `rgba(231, 229, 225, ${0.55 * alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r + 4.5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  drawNodeLabel(n, online, alpha);
+  ctx.globalAlpha = 1;
 }
 
 function frame(ts) {
@@ -710,10 +702,10 @@ els.netCanvas.addEventListener("pointerup", (e) => {
   els.netCanvas.style.cursor = NET.hover ? "grab" : "default";
   if (!wasDrag || !startPos) return;
   const pos = canvasPos(e);
-  const ip = wasDrag.peer.ipv4 || wasDrag.peer.ipv6 || "";
+  const ip = wasDrag.peer ? wasDrag.peer.ipv4 || wasDrag.peer.ipv6 || "" : "";
   if (Math.hypot(pos.x - startPos.x, pos.y - startPos.y) < 5 && ip) {
     copyText(ip);
-    toast(`${ip} — ${t("toast.copied").toLowerCase()}`);
+    toast(`${ip} - ${t("toast.copied").toLowerCase()}`);
   }
 });
 
@@ -750,10 +742,6 @@ for (const btn of document.querySelectorAll(".nf-btn")) {
     applyNetFilter();
   });
 }
-
-/* ================================================================ */
-/*  Menu « plus »                                                    */
-/* ================================================================ */
 
 function findPeer(id) {
   const n = NET.allNodes.find((n) => n.id === id);
@@ -841,14 +829,10 @@ document.addEventListener("pointerdown", (ev) => {
   }
 });
 
-/* ================================================================ */
-/*  Panneau Tailscale                                                */
-/* ================================================================ */
-
 function updateConnUI() {
   const st = lastStatus;
   if (!st) {
-    els.connText.textContent = "—";
+    els.connText.textContent = "-";
     els.btnConn.textContent = "…";
     return;
   }
@@ -935,7 +919,7 @@ function ynCell(v, label) {
     return `<span class="nc-k">${label}</span><span class="nc-v ok"><span class="nc-dot"></span>${esc(t("common.yes"))}</span>`;
   if (v === false)
     return `<span class="nc-k">${label}</span><span class="nc-v ko"><span class="nc-dot"></span>${esc(t("common.no"))}</span>`;
-  return `<span class="nc-k">${label}</span><span class="nc-v">—</span>`;
+  return `<span class="nc-k">${label}</span><span class="nc-v">-</span>`;
 }
 
 function netcheckHtml(nc) {
@@ -949,6 +933,8 @@ function netcheckHtml(nc) {
   }
   if (nc.preferred)
     h += `<span class="nc-k">${esc(t("diag.pref"))}</span><span class="nc-v">${esc(nc.preferred)}</span>`;
+  if (nc.port_map)
+    h += `<span class="nc-k">${esc(t("diag.portMap"))}</span><span class="nc-v">${esc(nc.port_map)}</span>`;
   h += "</div>";
   if (nc.derps && nc.derps.length) {
     h +=
@@ -956,7 +942,7 @@ function netcheckHtml(nc) {
       nc.derps
         .map(
           (d) =>
-            `<span class="derp-chip${d.region === nc.preferred ? " pref" : ""}">${esc(d.region)}<b>${Math.round(d.ms)} ms</b></span>`
+            `<span class="derp-chip${d.region === nc.preferred ? " pref" : ""}">${esc(d.region)}${d.name ? ` <i>${esc(d.name)}</i>` : ""}<b>${Math.round(d.ms)} ms</b></span>`
         )
         .join("") +
       "</div>";
@@ -969,6 +955,7 @@ function openPanel() {
   els.backdrop.classList.remove("hidden");
   updateConnUI();
   loadExitNodes();
+  loadProfiles();
 }
 
 function closePanel() {
@@ -987,10 +974,6 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-/* ================================================================= */
-/*  Paramètres                                                        */
-/* ================================================================= */
-
 function isEmbeddedRdp() {
   return localStorage.getItem("bc_rdp_embedded") !== "0";
 }
@@ -1004,6 +987,7 @@ els.optLang.addEventListener("change", () => {
   const l = els.optLang.value === "fr" ? "fr" : "en";
   localStorage.setItem("bc_lang", l);
   window.BC.setLang(l);
+  loadProfiles();
   if (lastStatus) render(lastStatus);
   updateConnUI();
 });
@@ -1064,9 +1048,47 @@ els.btnUpd.addEventListener("click", async () => {
   }
 });
 
-/* ================================================================= */
-/*  Bureau à distance intégré                                         */
-/* ================================================================= */
+async function loadProfiles() {
+  if (!invoke) return;
+  try {
+    const list = await invoke("list_profiles");
+    if (!list.length) {
+      els.tailnetSelect.disabled = true;
+      els.tailnetSelect.innerHTML = `<option>${esc(t("switch.none"))}</option>`;
+      return;
+    }
+    els.tailnetSelect.disabled = false;
+    els.tailnetSelect.innerHTML = list
+      .map(
+        (p) =>
+          `<option value="${esc(p.id)}"${p.current ? " selected" : ""}>${esc(p.tailnet)}</option>`
+      )
+      .join("");
+  } catch {
+    els.tailnetSelect.disabled = true;
+    els.tailnetSelect.innerHTML = `<option value="">tailnet</option>`;
+  }
+}
+
+els.tailnetSelect.addEventListener("change", async () => {
+  const id = els.tailnetSelect.value;
+  if (!id) return;
+  els.tailnetSelect.disabled = true;
+  toast(t("switch.switching"));
+  try {
+    await invoke("switch_profile", { id });
+    await Promise.all([refresh(), loadProfiles()]);
+    toast(t("switch.done", { n: els.tailnetSelect.selectedOptions[0]?.textContent || "" }));
+    setTimeout(() => {
+      if (!document.hidden) refresh();
+    }, 4000);
+  } catch (e) {
+    toast(typeof e === "string" ? e : t("toast.failed"), 6000);
+    loadProfiles();
+  } finally {
+    if (els.tailnetSelect.value) els.tailnetSelect.disabled = false;
+  }
+});
 
 const SCANCODES = {
   Escape: 0x01,
@@ -1111,7 +1133,7 @@ function setRdpState(text, dotClass) {
 
 function openRdp(target) {
   RDP.target = target;
-  els.rdpTitle.textContent = `BrainConnect — ${target}`;
+  els.rdpTitle.textContent = `BrainConnect - ${target}`;
   els.rdpAuthHost.textContent = target;
   els.rdpPass.value = "";
   els.rdpErr.textContent = "";
@@ -1285,9 +1307,7 @@ els.rdpStage.addEventListener("keyup", (e) => {
   });
 });
 
-/* ============================================================== */
-/*  Démarrage                                                      */
-/* ============================================================== */
+let refreshing = false;
 
 async function refresh() {
   if (!invoke) {
@@ -1295,12 +1315,16 @@ async function refresh() {
     setStatus("err", t("st.browserMode"));
     return;
   }
+  if (refreshing) return;
+  refreshing = true;
   try {
     const st = await invoke("get_status");
     render(st);
   } catch (e) {
     setStatus("err", t("st.err"));
     showBanner(t("banner.fail", { e: esc(String(e)) }), true);
+  } finally {
+    refreshing = false;
   }
 }
 
@@ -1330,6 +1354,7 @@ document.addEventListener("visibilitychange", () => {
     try { appVersion = await Tauri.app.getVersion(); } catch {}
   }
 
+  loadProfiles();
   await refresh();
 
   if (updatesEnabled() && invoke) {

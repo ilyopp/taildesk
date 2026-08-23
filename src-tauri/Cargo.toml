@@ -1,7 +1,7 @@
 [package]
 name = "brainconnect"
 version = "0.1.1"
-description = "Tableau de bord Tailscale — BrainConnect"
+description = "Tableau de bord Tailscale - BrainConnect"
 edition = "2021"
 
 [build-dependencies]

@@ -1,14 +1,14 @@
 # BrainConnect
 
-Tableau de bord de bureau pour ton réseau Tailscale — liste des machines, carte
+Tableau de bord de bureau pour ton réseau Tailscale - liste des machines, carte
 réseau animée, client RDP intégré, Taildrop et diagnostics réseau. Rust + Tauri.
 
 > English version: [README.md](README.md)
 
 ## Prérequis
 
-- [Node.js](https://nodejs.org) (pour le CLI Tauri) — `node -v`
-- [Rust](https://rustup.rs) — `cargo --version`
+- [Node.js](https://nodejs.org) (pour le CLI Tauri) - `node -v`
+- [Rust](https://rustup.rs) - `cargo --version`
 - Tailscale installé et connecté sur le PC
 
 Les utilisateurs finaux n'ont besoin de rien de tout cela : le `Setup.exe`
@@ -55,6 +55,7 @@ pas, sinon les mises à jour auto ne pourront plus être signées.
 | Panneau Tailscale (bouton réglages) | Connecter/couper le tailnet (`tailscale up/down`), choix du nœud de sortie (`exit-node`), diagnostic réseau complet (`netcheck` : UDP, IPv4/IPv6, NAT, UPnP/PMP/PCP, latences DERP), langue, mises à jour |
 | Menu « ⋯ » d'une machine | Bureau à distance, envoi de fichier via Taildrop, copie du nom MagicDNS ou de l'IPv6 |
 | Bureau à distance intégré | Client RDP complet embarqué (IronRDP) : écran distant affiché dans l'app avec clavier/souris. Activable dans Panneau → Paramètres ; sinon utilise mstsc |
+| Changement de réseau | Menu déroulant dans Panneau → Connexion : liste les réseaux (tailnets) déjà connectés sur ce PC (`tailscale switch --list`) et bascule instantanément de l'un à l'autre (`tailscale switch`). Pour ajouter un réseau : connecte-le d'abord une fois depuis l'application Tailscale ou `tailscale login` |
 
 L'actualisation est automatique toutes les 10 s (aucun réglage).
 
@@ -73,7 +74,7 @@ La vérification interroge les releases de ce dépôt :
 1. L'endpoint se trouve dans `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`)
    et pointe vers `https://github.com/ilyopp/brainconnect/releases/latest/download/latest.json`.
 2. Publie une Release GitHub (tag `vX.Y.Z`) avec en pièces jointes : l'exécutable
-   `.exe` autonome, son `.sig` et un manifeste `latest.json` — les trois sont
+   `.exe` autonome, son `.sig` et un manifeste `latest.json` - les trois sont
    produits par `npm run build` sous `src-tauri/target/release/bundle/`.
 
 ### Notes sur le bureau à distance intégré

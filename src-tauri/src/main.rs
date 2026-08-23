@@ -15,7 +15,6 @@ const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
 
 mod rdp;
 
-// Langue par défaut posée par l'installeur ($INSTDIR/language.txt)
 #[tauri::command]
 fn get_default_lang() -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -166,15 +165,24 @@ struct StatusVm {
     peers: Vec<PeerVm>,
 }
 
+fn split_ips(ips: &[String]) -> (String, String) {
+    let mut v4 = String::new();
+    let mut v6 = String::new();
+    for ip in ips {
+        if ip.contains(':') {
+            if v6.is_empty() {
+                v6 = ip.clone();
+            }
+        } else if v4.is_empty() {
+            v4 = ip.clone();
+        }
+    }
+    (v4, v6)
+}
+
 impl From<&TsPeer> for PeerVm {
     fn from(p: &TsPeer) -> Self {
-        let mut ips = p.ips.clone().unwrap_or_default();
-        let ipv6 = ips
-            .iter()
-            .position(|ip| ip.contains(':'))
-            .and_then(|i| Some(ips.remove(i)))
-            .unwrap_or_default();
-        let ipv4 = ips.first().cloned().unwrap_or_default();
+        let (ipv4, ipv6) = split_ips(p.ips.as_deref().unwrap_or_default());
         PeerVm {
             hostname: p.host_name.clone().unwrap_or_default(),
             dns_name: p
@@ -193,8 +201,7 @@ impl From<&TsPeer> for PeerVm {
     }
 }
 
-#[tauri::command]
-fn get_status() -> Result<StatusVm, String> {
+fn local_status() -> Result<StatusVm, String> {
     let out = ts_command()?
         .args(["status", "--json"])
         .output()
@@ -242,6 +249,65 @@ fn get_status() -> Result<StatusVm, String> {
         self_device: self_vm,
         peers,
     })
+}
+
+#[tauri::command]
+fn get_status() -> Result<StatusVm, String> {
+    local_status()
+}
+
+#[derive(Deserialize)]
+struct TsProfile {
+    id: String,
+    #[serde(default)]
+    tailnet: String,
+    #[serde(default)]
+    nickname: String,
+    #[serde(rename = "selected", default)]
+    selected: bool,
+}
+
+#[derive(Serialize)]
+struct ProfileVm {
+    id: String,
+    tailnet: String,
+    current: bool,
+}
+
+#[tauri::command]
+fn list_profiles() -> Result<Vec<ProfileVm>, String> {
+    let out = ts_command()?
+        .args(["switch", "--list", "--json"])
+        .output()
+        .map_err(|e| format!("Commande impossible : {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let profiles: Vec<TsProfile> = serde_json::from_slice(&out.stdout)
+        .map_err(|e| format!("Réponse tailscale illisible : {e}"))?;
+    Ok(profiles
+        .into_iter()
+        .map(|p| ProfileVm {
+            current: p.selected,
+            id: p.id,
+            tailnet: if p.tailnet.is_empty() { p.nickname } else { p.tailnet },
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn switch_profile(id: String) -> Result<(), String> {
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err("Identifiant de réseau invalide.".into());
+    }
+    let out = ts_command()?
+        .args(["switch", &id])
+        .output()
+        .map_err(|e| format!("Commande impossible : {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -371,7 +437,7 @@ fn list_exit_nodes() -> Result<Vec<ExitNodeVm>, String> {
 
         let looks_like_row =
             ip.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
-                || matches!(ip.as_str(), "-" | "–");
+                || ip.as_str() == "-";
         if !looks_like_row || !is_safe_host(&host) {
             continue;
         }
@@ -402,6 +468,8 @@ fn set_exit_node(node: String) -> Result<(), String> {
 #[derive(Serialize)]
 struct DerpLatency {
     region: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    name: String,
     ms: f64,
 }
 
@@ -411,6 +479,7 @@ struct NetcheckVm {
     ipv4: Option<bool>,
     ipv6: Option<bool>,
     nat_varies: Option<bool>,
+    port_map: String,
     upnp: String,
     pmp: String,
     pcp: String,
@@ -439,6 +508,7 @@ fn netcheck() -> Result<NetcheckVm, String> {
         ipv4: None,
         ipv6: None,
         nat_varies: None,
+        port_map: String::new(),
         upnp: String::new(),
         pmp: String::new(),
         pcp: String::new(),
@@ -448,7 +518,7 @@ fn netcheck() -> Result<NetcheckVm, String> {
 
     let mut in_derp = false;
     for line in stdout.lines() {
-        let l = line.trim();
+        let l = line.trim().strip_prefix("* ").unwrap_or(line.trim());
         if let Some(v) = l.strip_prefix("UDP:") {
             nc.udp = parse_bool(v);
         } else if let Some(v) = l.strip_prefix("IPv4:") {
@@ -463,6 +533,10 @@ fn netcheck() -> Result<NetcheckVm, String> {
             nc.pmp = v.trim().to_string();
         } else if let Some(v) = l.strip_prefix("PCP:") {
             nc.pcp = v.trim().to_string();
+        } else if let Some(v) = l.strip_prefix("PortMapping:") {
+            nc.port_map = v.trim().to_string();
+        } else if let Some(v) = l.strip_prefix("Nearest DERP:") {
+            nc.preferred = v.trim().to_string();
         } else if let Some(v) = l.strip_prefix("PreferredDERP:") {
             nc.preferred = v.trim().to_string();
         } else if l.starts_with("DERP latency") {
@@ -470,13 +544,20 @@ fn netcheck() -> Result<NetcheckVm, String> {
         } else if in_derp {
             if let Some(rest) = l.strip_prefix("- ") {
                 if let Some((region, tail)) = rest.split_once(':') {
+                    let tail = tail.trim();
                     let num: String = tail
                         .chars()
                         .take_while(|c| c.is_ascii_digit() || *c == '.')
                         .collect();
                     if let Ok(ms) = num.parse::<f64>() {
+                        let name = tail
+                            .split_once('(')
+                            .and_then(|(_, n)| n.split_once(')').map(|(n, _)| n.trim()))
+                            .unwrap_or_default()
+                            .to_string();
                         nc.derps.push(DerpLatency {
                             region: region.trim().to_string(),
+                            name,
                             ms,
                         });
                     }
@@ -488,6 +569,10 @@ fn netcheck() -> Result<NetcheckVm, String> {
     if nc.udp.is_none() && nc.derps.is_empty() {
         let snippet: String = stdout.lines().take(4).collect::<Vec<_>>().join(" / ");
         return Err(format!("Sortie netcheck illisible : {snippet}"));
+    }
+
+    if let Some(d) = nc.derps.iter().find(|d| d.name == nc.preferred) {
+        nc.preferred = d.region.clone();
     }
 
     nc.derps.sort_by(|a, b| a.ms.total_cmp(&b.ms));
@@ -536,6 +621,8 @@ fn main() {
             netcheck,
             pick_file,
             taildrop_send,
+            list_profiles,
+            switch_profile,
             rdp::rdp_start,
             rdp::rdp_stop,
             rdp::rdp_input,

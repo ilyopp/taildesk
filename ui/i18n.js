@@ -1,7 +1,5 @@
 "use strict";
 
-/* BrainConnect — internationalisation (en par défaut, fr disponible) */
-
 window.BC = (function () {
   const DICT = {
     en: {
@@ -11,7 +9,7 @@ window.BC = (function () {
       "search.placeholder": "Search a device or an IP…",
       "loading": "Connecting to tailnet…",
 
-      "st.connected": "Connected — {n} device(s) · {m} online",
+      "st.connected": "Connected - {n} device(s) · {m} online",
       "st.needsLogin": "Tailscale login required",
       "st.err": "Tailscale error",
       "st.browserMode": "Browser mode",
@@ -75,6 +73,7 @@ window.BC = (function () {
       "diag.running": "Running (~5 s)…",
       "diag.natVaries": "Variable NAT",
       "diag.pref": "Preferred relay",
+      "diag.portMap": "Mapped port",
       "common.yes": "Yes",
       "common.no": "No",
 
@@ -84,9 +83,9 @@ window.BC = (function () {
       "conn.disconnectBtn": "Disconnect",
       "conn.connectBtn": "Connect",
 
-      "exit.none": "None — direct access",
+      "exit.none": "None - direct access",
       "exit.loading": "Loading…",
-      "exit.unavail": "Unavailable — {m}",
+      "exit.unavail": "Unavailable - {m}",
       "exit.current": "Current: {ip} (not listed)",
       "exit.noneShared": "No device shares its connection",
       "exit.applied": "Exit node: {h}",
@@ -94,6 +93,11 @@ window.BC = (function () {
       "exit.via": "exit via {ip}",
 
       "set.lang": "Language",
+      "switch.label": "Network (tailnet)",
+      "switch.tip": "Switch tailnet",
+      "switch.switching": "Switching network…",
+      "switch.done": "Now on {n}",
+      "switch.none": "No network",
       "set.updatesH": "Updates",
       "set.updates": "Automatic updates",
       "set.checkNow": "Check for updates",
@@ -126,7 +130,7 @@ window.BC = (function () {
       "search.placeholder": "Rechercher une machine ou une IP…",
       "loading": "Connexion au tailnet…",
 
-      "st.connected": "Connecté — {n} machine(s) · {m} en ligne",
+      "st.connected": "Connecté - {n} machine(s) · {m} en ligne",
       "st.needsLogin": "Connexion à Tailscale requise",
       "st.err": "Erreur Tailscale",
       "st.browserMode": "Mode navigateur",
@@ -190,6 +194,7 @@ window.BC = (function () {
       "diag.running": "Analyse en cours (~5 s)…",
       "diag.natVaries": "NAT variable",
       "diag.pref": "Relai préféré",
+      "diag.portMap": "Port mappé",
       "common.yes": "Oui",
       "common.no": "Non",
 
@@ -199,9 +204,9 @@ window.BC = (function () {
       "conn.disconnectBtn": "Couper",
       "conn.connectBtn": "Connecter",
 
-      "exit.none": "Aucun — accès direct",
+      "exit.none": "Aucun - accès direct",
       "exit.loading": "Chargement…",
-      "exit.unavail": "Indisponible — {m}",
+      "exit.unavail": "Indisponible - {m}",
       "exit.current": "Actuel : {ip} (hors liste)",
       "exit.noneShared": "Aucune machine ne partage de connexion",
       "exit.applied": "Nœud de sortie : {h}",
@@ -209,6 +214,11 @@ window.BC = (function () {
       "exit.via": "sortie via {ip}",
 
       "set.lang": "Langue",
+      "switch.label": "Réseau (tailnet)",
+      "switch.tip": "Changer de réseau",
+      "switch.switching": "Changement de réseau…",
+      "switch.done": "Réseau : {n}",
+      "switch.none": "Aucun réseau",
       "set.updatesH": "Mises à jour",
       "set.updates": "Mises à jour automatiques",
       "set.checkNow": "Vérifier les mises à jour",
