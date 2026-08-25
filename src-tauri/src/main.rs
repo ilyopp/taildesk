@@ -14,7 +14,7 @@ pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
 
 mod embedded;
-mod rdp;
+mod rc;
 mod xfer;
 
 #[tauri::command]
@@ -632,9 +632,10 @@ fn main() {
             xfer::xfer_clear_history,
             list_profiles,
             switch_profile,
-            rdp::rdp_start,
-            rdp::rdp_stop,
-            rdp::rdp_input,
+            rc::rc_respond,
+            rc::rdc_start,
+            rc::rdc_input,
+            rc::rc_stop,
             get_default_lang,
             updater_check,
             updater_install,

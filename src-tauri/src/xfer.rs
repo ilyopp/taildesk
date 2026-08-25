@@ -47,6 +47,13 @@ struct State {
 
 static STATE: OnceLock<StdMutex<State>> = OnceLock::new();
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+/// AppHandle global : le dispatcher de connexions réveille l'UI pour la
+/// pop-up de consentement du contrôle à distance.
+pub(crate) fn app_handle() -> Option<tauri::AppHandle> {
+    APP.get().cloned()
+}
+
 static BOUND_IP: StdMutex<Option<String>> = StdMutex::new(None);
 static SERVER_GEN: AtomicU64 = AtomicU64::new(0);
 static AUTO_ACCEPT: StdMutex<bool> = StdMutex::new(false);
@@ -154,7 +161,7 @@ fn safe_name(raw: &str) -> String {
     }
 }
 
-fn safe_label(raw: &str) -> String {
+pub(crate) fn safe_label(raw: &str) -> String {
     let mut out = String::new();
     for c in raw.trim().chars().take(48) {
         if c.is_ascii_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-') {
@@ -218,7 +225,7 @@ fn cleanup_parts(dir: &str) {
     }
 }
 
-fn verify_tailnet_ip(ip: &str) -> bool {
+pub(crate) fn verify_tailnet_ip(ip: &str) -> bool {
     let mut cmd = match crate::ts_command() {
         Ok(c) => c,
         Err(_) => return false,
@@ -322,7 +329,7 @@ pub fn ensure_server(self_ip: &str) {
     });
 }
 
-fn read_head(stream: &mut TcpStream) -> Result<(String, Vec<u8>), String> {
+pub(crate) fn read_head(stream: &mut TcpStream) -> Result<(String, Vec<u8>), String> {
     let mut buf: Vec<u8> = Vec::with_capacity(4096);
     let mut tmp = [0u8; 1024];
     loop {
@@ -359,7 +366,7 @@ fn parse_head(head: &str) -> Option<(String, String, HashMap<String, String>)> {
     Some((method, target, headers))
 }
 
-fn header_cl(head: &str) -> Option<u64> {
+pub(crate) fn header_cl(head: &str) -> Option<u64> {
     for l in head.lines() {
         if let Some((k, v)) = l.split_once(':') {
             if k.trim().eq_ignore_ascii_case("content-length") {
@@ -370,11 +377,11 @@ fn header_cl(head: &str) -> Option<u64> {
     None
 }
 
-fn content_len(hdrs: &HashMap<String, String>) -> Option<u64> {
+pub(crate) fn content_len(hdrs: &HashMap<String, String>) -> Option<u64> {
     hdrs.get("content-length")?.parse().ok()
 }
 
-fn expect_continue(hdrs: &HashMap<String, String>, stream: &mut TcpStream) -> bool {
+pub(crate) fn expect_continue(hdrs: &HashMap<String, String>, stream: &mut TcpStream) -> bool {
     if hdrs.get("expect").map(|v| v.contains("100-continue")) == Some(true) {
         stream.write_all(b"HTTP/1.1 100 Continue\r\n\r\n").is_ok()
     } else {
@@ -382,7 +389,7 @@ fn expect_continue(hdrs: &HashMap<String, String>, stream: &mut TcpStream) -> bo
     }
 }
 
-fn read_n(
+pub(crate) fn read_n(
     stream: &mut TcpStream,
     leftover: Vec<u8>,
     len: u64,
@@ -405,7 +412,7 @@ fn read_n(
     Ok(out)
 }
 
-fn respond(stream: &mut TcpStream, status: u16, reason: &str, ctype: &str, body: &str) {
+pub(crate) fn respond(stream: &mut TcpStream, status: u16, reason: &str, ctype: &str, body: &str) {
     let head = format!(
         "HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
@@ -415,7 +422,7 @@ fn respond(stream: &mut TcpStream, status: u16, reason: &str, ctype: &str, body:
     let _ = stream.flush();
 }
 
-fn q_value(q: &str, key: &str) -> Option<String> {
+pub(crate) fn q_value(q: &str, key: &str) -> Option<String> {
     for pair in q.split('&') {
         let (k, v) = pair.split_once('=')?;
         if k == key {
@@ -446,6 +453,21 @@ fn handle_conn(mut stream: TcpStream) {
         }
         ("POST", "/offer") => handle_offer(&mut stream, &hdrs, leftover),
         ("PUT", "/data") => handle_put(&mut stream, &hdrs, leftover, &query),
+        ("POST", "/rc-request") => {
+            if let Some(app) = app_handle() {
+                crate::rc::handle_request(&app, &mut stream, &hdrs, leftover);
+            }
+        }
+        ("GET", "/rc-stream") => {
+            if let Some(app) = app_handle() {
+                crate::rc::handle_stream(&app, &mut stream, &query);
+            }
+        }
+        ("POST", "/rc-input") => {
+            if let Some(app) = app_handle() {
+                crate::rc::handle_input(&app, &mut stream, &query);
+            }
+        }
         _ => respond(
             &mut stream,
             404,
@@ -745,7 +767,7 @@ fn handle_put(stream: &mut TcpStream, hdrs: &HashMap<String, String>, leftover: 
     }
 }
 
-fn connect_to(ip: &str, timeout: Duration) -> Result<TcpStream, String> {
+pub(crate) fn connect_to(ip: &str, timeout: Duration) -> Result<TcpStream, String> {
     let addr: SocketAddr = format!("{ip}:{XFER_PORT}")
         .parse()
         .map_err(|_| "adresse invalide".to_string())?;

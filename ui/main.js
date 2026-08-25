@@ -49,21 +49,25 @@ const els = {
   rdpStage: document.getElementById("rdp-stage"),
   rdpAuth: document.getElementById("rdp-auth"),
   rdpAuthHost: document.getElementById("rdp-auth-host"),
-  rdpUser: document.getElementById("rdp-user"),
-  rdpPass: document.getElementById("rdp-pass"),
+  rdpCancel: document.getElementById("rdp-cancel"),
   rdpErr: document.getElementById("rdp-err"),
   rdpImg: document.getElementById("rdp-img"),
 
   viewFiles: document.getElementById("view-files"),
   xfContent: document.getElementById("xfer-content"),
   xfBadge: document.getElementById("xf-badge"),
-  btnNewSend: document.getElementById("btn-new-send"),
+  rcAuth: document.getElementById("rc-auth"),
+  rcHost: document.getElementById("rc-host"),
+  rcKb: document.getElementById("rc-kb"),
+  rcMouse: document.getElementById("rc-mouse"),
+  rcAccept: document.getElementById("rc-accept"),
+  rcRefuse: document.getElementById("rc-refuse"),
+  rcMute: document.getElementById("rc-mute"),
   btnClearXfer: document.getElementById("btn-clear-xfer"),
   optAutoAccept: document.getElementById("opt-auto-accept"),
   xfDir: document.getElementById("xf-dir"),
   btnPickDir: document.getElementById("btn-pick-dir"),
   dropOverlay: document.getElementById("drop-overlay"),
-  destMenu: document.getElementById("dest-menu"),
 
   welcome: document.getElementById("welcome"),
   btnWelcomeLogin: document.getElementById("btn-welcome-login"),
@@ -945,55 +949,6 @@ els.btnClearXfer.addEventListener("click", async () => {
   }
 });
 
-let destCb = null;
-
-function closeDestMenu() {
-  els.destMenu.classList.add("hidden");
-  destCb = null;
-}
-
-function openDestPicker(cb) {
-  const peers = ((lastStatus && lastStatus.peers) || []).filter(
-    (p) => p.online && (p.ipv4 || p.dns_name)
-  );
-  els.destMenu.querySelector(".dm-title").textContent = t("xf.chooseDest");
-  const list = els.destMenu.querySelector(".dm-list");
-  if (!peers.length) {
-    list.innerHTML = `<p class="hint dm-none">${esc(t("xf.noneOnline"))}</p>`;
-  } else {
-    list.innerHTML = peers
-      .map(
-        (p, i) =>
-          `<button class="rm-item" data-i="${i}">${esc(p.hostname || p.dns_name)}` +
-          `<span class="dm-ip">${esc(p.ipv4 || "")}</span></button>`
-      )
-      .join("");
-  }
-  els.destMenu._peers = peers;
-  destCb = cb;
-  els.destMenu.classList.remove("hidden");
-}
-
-els.destMenu.addEventListener("click", (ev) => {
-  const btn = ev.target.closest("[data-i]");
-  const peers = els.destMenu._peers || [];
-  if (!btn) {
-    closeDestMenu();
-    return;
-  }
-  const p = peers[Number(btn.dataset.i)];
-  const cb = destCb;
-  closeDestMenu();
-  if (p && cb) cb(p);
-});
-
-els.btnNewSend.addEventListener("click", () => {
-  openDestPicker((p) => {
-    invoke("pick_files").then((paths) => {
-      if (paths && paths.length) sendTo(p, paths);
-    });
-  });
-});
 
 if (Tauri && Tauri.event) {
   Tauri.event.listen("xfer-update", (ev) => {
@@ -1008,6 +963,12 @@ const DROP = { depth: 0, paths: [] };
 
 function dropOverlay(show) {
   els.dropOverlay.classList.toggle("hidden", !show);
+}
+
+function peerAtPoint(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const card = el && el.closest ? el.closest(".machine") : null;
+  return card ? findPeer(card.dataset.id) : null;
 }
 
 function initDragDrop() {
@@ -1027,12 +988,11 @@ function initDragDrop() {
         DROP.depth = 0;
         dropOverlay(false);
         if (p.paths && p.paths.length) {
-          DROP.paths = p.paths;
-          openDestPicker((peer) => {
-            const paths = DROP.paths.slice();
-            DROP.paths = [];
-            sendTo(peer, paths);
-          });
+          const paths = DROP.paths.slice();
+          DROP.paths = [];
+          const peer = peerAtPoint(p.x ?? 0, p.y ?? 0);
+          if (peer) sendTo(peer, paths);
+          else toast(t("xf.dropOnDevice"), 5000);
         }
       } else if (type === "leave") {
         DROP.depth = Math.max(0, DROP.depth - 1);
@@ -1267,7 +1227,8 @@ els.rowMenu.addEventListener("click", async (ev) => {
       toast(t("toast.copied"));
     } else if (item.act === "rdp") {
       if (isEmbeddedRdp()) {
-        openRdp(item.val);
+        const p = findPeer(item.val);
+        openRdp(item.val, p ? p.hostname || p.dns_name : "");
       } else {
         toast(t("menu.rdpOpenWin"));
         await invoke("open_rdp", { ip: item.val });
@@ -1289,9 +1250,6 @@ document.addEventListener("pointerdown", (ev) => {
     if (!els.rowMenu.contains(ev.target) && !ev.target.closest('[data-action="more"]')) {
       hideRowMenu();
     }
-  }
-  if (!els.destMenu.classList.contains("hidden") && !els.destMenu.contains(ev.target)) {
-    closeDestMenu();
   }
 });
 
@@ -1437,7 +1395,6 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closePanel();
     hideRowMenu();
-    closeDestMenu();
   }
 });
 
@@ -1598,24 +1555,51 @@ function setRdpState(text, dotClass) {
   els.rdpDot.className = `dot ${dotClass || "warn"}`;
 }
 
-function openRdp(target) {
+function openRdp(target, host) {
   RDP.target = target;
-  els.rdpTitle.textContent = `Taildesk - ${target}`;
-  els.rdpAuthHost.textContent = target;
-  els.rdpPass.value = "";
+  els.rdpTitle.textContent = `Taildesk - ${host || target}`;
+  els.rdpAuthHost.textContent = host || target;
   els.rdpErr.textContent = "";
   els.rdpImg.classList.add("hidden");
   els.rdpImg.src = "";
   els.rdpAuth.classList.remove("hidden");
+  els.rdpCancel.disabled = false;
   RDP.connected = false;
-  setRdpState(t("rdp.waitingCreds"), "warn");
+  setRdpState(t("rc.waiting"), "warn");
   els.rdp.classList.remove("hidden");
-  els.rdpUser.focus();
+
+  invoke("rdc_start", { target, host: host || target })
+    .then((resp) => {
+      if (RDP.target !== target) return;
+      RDP.remote = { w: resp.width, h: resp.height };
+      els.rdpAuth.classList.add("hidden");
+      els.rdpErr.textContent = "";
+      els.rdpImg.src = `http://127.0.0.1:${resp.port}/stream`;
+      els.rdpImg.classList.remove("hidden");
+      RDP.connected = true;
+      setRdpState(t("rdp.active"), "on");
+      els.rdpStage.focus();
+    })
+    .catch((e) => {
+      if (RDP.target !== target) return;
+      const code = typeof e === "string" ? e : "";
+      const key = {
+        muted: "rc.muted",
+        refused: "rc.refused",
+        timeout: "rc.timeout",
+        "aucune réponse": "rc.timeout",
+        busy: "rc.busy",
+        "session en cours": "rc.busy",
+      }[code];
+      els.rdpErr.textContent = t(key || "rdp.failed");
+      setRdpState(key ? t(key) : t("rdp.failed"), "err");
+      els.rdpCancel.disabled = true;
+    });
 }
 
 function closeRdp() {
   if (!els.rdp.classList.contains("hidden")) {
-    invoke && invoke("rdp_stop").catch(() => {});
+    invoke && invoke("rc_stop").catch(() => {});
   }
   RDP.connected = false;
   RDP.target = null;
@@ -1624,79 +1608,73 @@ function closeRdp() {
 }
 
 els.rdpClose.addEventListener("click", closeRdp);
-
-function rdpSize() {
-  const scale = Math.min(window.devicePixelRatio || 1, 1.5);
-  const width = Math.max(1024, Math.min(1600, Math.round((window.innerWidth - 40) * scale)));
-  const height = Math.max(640, Math.min(1000, Math.round((window.innerHeight - 90) * scale)));
-  return { width, height };
-}
-
-els.rdpAuth.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const user = els.rdpUser.value.trim();
-  const pass = els.rdpPass.value;
-  if (!user || !pass) {
-    els.rdpErr.textContent = t("rdp.missingCreds");
-    return;
-  }
-  const submitBtn = els.rdpAuth.querySelector(".rdp-submit");
-  submitBtn.disabled = true;
-  submitBtn.textContent = t("rdp.connecting");
-  els.rdpErr.textContent = "";
-  setRdpState(t("rdp.connecting"), "warn");
-  try {
-    const size = rdpSize();
-    const resp = await invoke("rdp_start", {
-      target: RDP.target,
-      username: user,
-      password: pass,
-      width: size.width,
-      height: size.height,
-    });
-    RDP.remote = { w: resp.width, h: resp.height };
-    els.rdpImg.src = `http://127.0.0.1:${resp.port}/stream`;
-    els.rdpAuth.classList.add("hidden");
-    els.rdpImg.classList.remove("hidden");
-    RDP.connected = true;
-    setRdpState(t("rdp.active"), "on");
-    els.rdpStage.focus();
-  } catch (e) {
-    els.rdpErr.textContent = typeof e === "string" ? e : t("rdp.failed");
-    setRdpState(t("rdp.failed"), "err");
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = t("rdp.submit");
-  }
-});
+els.rdpCancel.addEventListener("click", closeRdp);
 
 if (Tauri && Tauri.event) {
-  Tauri.event.listen("rdp-status", (ev) => {
+  Tauri.event.listen("rc-status", (ev) => {
     const p = ev.payload || {};
     if (els.rdp.classList.contains("hidden")) return;
-    const stages = {
-      connect: t("rdp.connecting"),
-      negotiate: t("rdp.connecting"),
-      tls: t("rdp.connecting"),
-      auth: t("rdp.connecting"),
-      active: t("rdp.active"),
-    };
-    const localized = !p.error && stages[p.stage] !== undefined ? stages[p.stage] : p.message;
-    setRdpState(localized || "", p.error ? "err" : p.stage === "active" ? "on" : "warn");
-    if (p.error) {
-      if (els.rdpAuth.classList.contains("hidden")) {
-        els.rdpImg.classList.add("hidden");
-        els.rdpImg.src = "";
-        els.rdpAuth.classList.remove("hidden");
-        RDP.connected = false;
-      }
-      els.rdpErr.textContent = p.message || "";
+    if (p.stage === "ended") {
+      RDP.connected = false;
+      els.rdpImg.src = "";
+      els.rdpImg.classList.add("hidden");
+      els.rdpAuth.classList.remove("hidden");
+      setRdpState(t("rc.ended"), "warn");
     }
   });
 }
 
 function rdpSend(evt) {
-  if (RDP.connected && invoke) invoke("rdp_input", evt).catch(() => {});
+  if (RDP.connected && invoke) invoke("rdc_input", { evt }).catch(() => {});
+}
+
+// --- Côté cible : pop-up « Accepter / Refuser » -------------------------
+let rcPendingId = null;
+
+function hideRcAuth() {
+  rcPendingId = null;
+  els.rcAuth.classList.add("hidden");
+}
+
+async function answerRc(allow, mute) {
+  const id = rcPendingId;
+  hideRcAuth();
+  if (!id || !invoke) return;
+  try {
+    await invoke("rc_respond", {
+      id,
+      allow,
+      kb: allow && els.rcKb.checked,
+      mouse: allow && els.rcMouse.checked,
+      mute,
+    });
+    if (allow) toast(t("rdp.active"));
+  } catch (e) {
+    toast(typeof e === "string" ? e : t("toast.failed"), 5000);
+  }
+}
+
+els.rcAccept.addEventListener("click", () => answerRc(true, false));
+els.rcRefuse.addEventListener("click", () => answerRc(false, false));
+els.rcMute.addEventListener("click", () => answerRc(false, true));
+
+if (Tauri && Tauri.event) {
+  Tauri.event.listen("rc-incoming", (ev) => {
+    const p = ev.payload || {};
+    if (!p.id) return;
+    rcPendingId = p.id;
+    els.rcHost.textContent = p.host || "";
+    els.rcKb.checked = false;
+    els.rcMouse.checked = false;
+    els.rcAuth.classList.remove("hidden");
+  });
+  Tauri.event.listen("rc-incoming-closed", (ev) => {
+    const p = ev.payload || {};
+    if (p.id === rcPendingId) {
+      hideRcAuth();
+      toast(t("rc.timeout"), 5000);
+    }
+  });
 }
 
 function imgPos(e) {

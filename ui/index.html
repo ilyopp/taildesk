@@ -77,10 +77,6 @@
         <button id="btn-clear-xfer" class="btn ghost icon-only hidden" data-i18n-title="xf.clear" title="Clear finished transfers">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
         </button>
-        <button id="btn-new-send" class="btn new-send">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
-          <span data-i18n="xf.newSend">New transfer</span>
-        </button>
       </div>
       <main id="xfer-content"></main>
     </section>
@@ -197,11 +193,6 @@
 
   <div id="row-menu" class="row-menu hidden"></div>
 
-  <div id="dest-menu" class="row-menu dest-menu hidden">
-    <p class="dm-title"></p>
-    <div class="dm-list"></div>
-  </div>
-
   <div id="drop-overlay" class="drop-overlay hidden">
     <div class="drop-box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg>
@@ -219,15 +210,30 @@
       </button>
     </div>
     <div id="rdp-stage" class="rdp-stage" tabindex="0">
-      <form id="rdp-auth" class="rdp-auth">
-        <h3 data-i18n="rdp.formTitle">Remote desktop connection</h3>
-        <p class="hint"><span data-i18n="rdp.credsHint">Credentials of an authorized session on</span> <b id="rdp-auth-host"></b></p>
-        <input id="rdp-user" type="text" data-i18n-ph="rdp.user" autocomplete="off" spellcheck="false" />
-        <input id="rdp-pass" type="password" data-i18n-ph="rdp.pass" />
-        <button type="submit" class="btn block rdp-submit" data-i18n="rdp.submit">Connect</button>
+      <div id="rdp-auth" class="rdp-auth">
+        <h3 data-i18n="rc.waitingTitle">Authorization request sent</h3>
+        <p class="hint"><span data-i18n="rc.waitingHint">Waiting for an answer on</span> <b id="rdp-auth-host"></b></p>
+        <div class="rc-wait"><span class="spinner"></span></div>
+        <button type="button" id="rdp-cancel" class="btn ghost block" data-i18n="rc.cancel">Cancel</button>
         <p id="rdp-err" class="rdp-err"></p>
-      </form>
+      </div>
       <img id="rdp-img" class="hidden" draggable="false" alt="" />
+    </div>
+  </div>
+
+  <div id="rc-auth" class="welcome hidden">
+    <div class="rc-card">
+      <img src="assets/logo.png" class="welcome-logo" alt="">
+      <h3 data-i18n="rc.incomingTitle">Remote control request</h3>
+      <p class="rc-sub"><b id="rc-host"></b> <span data-i18n="rc.incomingSub">wants to see and control this screen.</span></p>
+      <label class="rc-opt"><input type="checkbox" id="rc-screen" checked disabled /> <span data-i18n="rc.screen">Screen (required)</span></label>
+      <label class="rc-opt"><input type="checkbox" id="rc-kb" /> <span data-i18n="rc.keyboard">Keyboard</span></label>
+      <label class="rc-opt"><input type="checkbox" id="rc-mouse" /> <span data-i18n="rc.mouse">Mouse</span></label>
+      <div class="rc-actions">
+        <button id="rc-accept" class="btn primary block" data-i18n="rc.accept">Accept</button>
+        <button id="rc-refuse" class="btn ghost block" data-i18n="rc.refuse">Refuse</button>
+        <button id="rc-mute" class="btn ghost block" data-i18n="rc.mute">Refuse and ignore for 15 min</button>
+      </div>
     </div>
   </div>
 

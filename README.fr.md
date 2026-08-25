@@ -56,9 +56,8 @@ pas, sinon les mises à jour auto ne pourront plus être signées.
 | Navigateur | Ouvre `http://<ip-tailscale>` de la machine |
 | SSH | Ouvre une console Windows avec `ssh <machine>` (utilise ton nom d'utilisateur Windows ; ajoute l'utilisateur dans `~/.ssh/config` si besoin) |
 | Panneau Tailscale (bouton réglages) | Connecter/couper le tailnet (`tailscale up/down`), choix du nœud de sortie (`exit-node`), diagnostic réseau complet (`netcheck` : UDP, IPv4/IPv6, NAT, UPnP/PMP/PCP, latences DERP), langue, mises à jour |
-| Menu « ⋯ » d'une machine | Bureau à distance, envoi de fichier via Taildrop, copie du nom MagicDNS ou de l'IPv6 |
-| Bureau à distance intégré | Client RDP complet embarqué (IronRDP) : écran distant affiché dans l'app avec clavier/souris. Activable dans Panneau → Paramètres ; sinon utilise mstsc |
-| Fichiers (Taildrop) | Onglet dédié pour envoyer des fichiers à n'importe quelle machine : glisser-déposer ou « Nouveau transfert », liste de progression, nettoyage des transferts terminés |
+| Fichiers (Taildrop) | Envoi de fichiers depuis le menu « ⋯ » d'une machine ou en les déposant dessus ; liste de progression, nettoyage des transferts terminés |
+| Contrôle à distance | Depuis le menu « ⋯ » : l'autre PC affiche une pop-up Accepter/Refuser où tu accordes clavier et souris - sans compte Windows ni RDP configuré. Désactivé dans les réglages, bascule sur mstsc |
 | Toujours connecté | Le service de connexion tourne en mode unattended : le PC se reconnecte seul au tailnet à l'ouverture de session, et l'app relance le service automatiquement s'il ne répond plus |
 | Changement de réseau | Menu déroulant dans Panneau → Connexion : liste les réseaux (tailnets) déjà connectés sur ce PC (`tailscale switch --list`) et bascule instantanément de l'un à l'autre (`tailscale switch`). Pour ajouter un réseau : connecte-le d'abord une fois depuis l'application Tailscale ou `tailscale login` |
 
@@ -86,14 +85,14 @@ La vérification interroge les releases de ce dépôt :
 Des copies de travail de l'installeur, du `.sig`, du `latest.json` et des notes
 de version sont préparées dans le dossier `release/` (ignoré par git).
 
-### Notes sur le bureau à distance intégré
+### Notes sur le contrôle à distance
 
-- La machine cible doit avoir le **Bureau à distance** activé et un compte protégé
-  par mot de passe (exigence NLA).
-- L'écran distant est diffusé en MJPEG sur `127.0.0.1` uniquement (jamais exposé) ;
-  le certificat TLS du serveur RDP n'est pas vérifié.
-- Si le build crashe avec `STATUS_STACK_BUFFER_OVERRUN`, relance avec
-  `RUST_MIN_STACK=33554432` (crash connu de rustc sur la crate `windows`).
+- L'écran distant est diffusé en MJPEG à travers le tailnet puis re-servi au
+  visionneur sur `127.0.0.1` uniquement ; l'accès est accordé par session
+  depuis une pop-up sur le PC cible (écran obligatoire, clavier et souris en
+  option) et l'appareil demandeur peut être ignoré 15 minutes.
+- Le repli mstsc exige toujours le **Bureau à distance** activé sur la cible
+  avec un compte protégé par mot de passe (exigence NLA).
 
 ## Structure
 
@@ -111,7 +110,7 @@ Taildesk/
 │   │                      # exit nodes, netcheck, updater
 │   ├── src/embedded.rs    # Sonde client embarqué, connexion guidée, auto-réparation daemon
 │   ├── src/xfer.rs        # Taildrop : destinations, envoi de fichiers, événements de progression
-│   ├── src/rdp.rs         # Client IronRDP embarqué + serveur MJPEG
+│   ├── src/rc.rs          # Partage d'écran : pop-up de consentement, capture, entrées
 │   ├── windows/hooks.nsi  # Hooks NSIS : langue d'installation, règle pare-feu,
 │   │                      # tâche planifiée lançant tailscaled à l'ouverture de session
 │   ├── tauri.conf.json    # Fenêtre, bundle NSIS, config updater

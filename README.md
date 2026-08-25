@@ -54,10 +54,8 @@ otherwise future auto-updates can't be signed.
 | Copy IP | Click the IP chip (clipboard button, or click a map node) |
 | Browser | Opens `http://<tailscale-ip>` for the selected device |
 | SSH | Opens a Windows console running `ssh <device>` (uses your Windows username; add per-device users in `~/.ssh/config` if needed) |
-| Tailscale panel (settings button) | Connect/disconnect the tailnet (`tailscale up/down`), exit-node switch (`exit-node list` / `set --exit-node`), network diagnostics (`netcheck`: UDP, IPv4/IPv6, NAT, UPnP/PMP/PCP, DERP latencies), language, updates |
-| Device « ⋯ » menu | Remote desktop, Taildrop file transfer, copy MagicDNS name or IPv6 |
-| Built-in remote desktop | Full embedded RDP client (IronRDP): the remote screen renders inside the app with keyboard & mouse. Toggle in Panel → Settings; disabled it falls back to Windows mstsc |
-| Files (Taildrop) | Dedicated tab to send files to any device: drag & drop or « New transfer », progress list, clear finished transfers |
+| Files (Taildrop) | Send files to any device from its « ⋯ » menu, or drop them onto a device; progress list and clear finished transfers |
+| Remote control | From the device « ⋯ » menu: the other PC shows an Accept/Refuse popup where you grant keyboard and mouse - no Windows account, no RDP setup. Disabled in settings it falls back to Windows mstsc |
 | Always connected | The connection service runs unattended: the PC reconnects to the tailnet by itself at logon, and the app relaunches the service automatically if it stops responding |
 | Network switcher | Dropdown in Panel → Connection: lists the tailnets already signed in on this PC (`tailscale switch --list`) and switches between them instantly (`tailscale switch`). To add a network: sign in once from the Tailscale app or `tailscale login` |
 
@@ -86,14 +84,14 @@ Checks hit this repository's releases:
 Staging copies of the installer, `.sig`, `latest.json` and release notes live
 in the gitignored `release/` folder.
 
-### Built-in remote desktop notes
+### Remote control notes
 
-- The target machine needs **Remote Desktop** enabled and an account protected
-  by a password (NLA requirement).
-- The remote display is streamed as MJPEG over `127.0.0.1` only (never exposed);
-  the RDP server TLS certificate is not verified.
-- If the build crashes with `STATUS_STACK_BUFFER_OVERRUN`, run it with
-  `RUST_MIN_STACK=33554432` (known rustc issue on the `windows` crate).
+- The remote display is streamed as MJPEG through the tailnet and re-served to
+  the viewer over `127.0.0.1` only; access is granted per session from a popup
+  on the target PC (screen always, keyboard and mouse optional) and the
+  requester can be ignored for 15 minutes.
+- The mstsc fallback still requires **Remote Desktop** enabled on the target
+  with a password-protected account (NLA requirement).
 
 ## Project layout
 
@@ -111,7 +109,7 @@ Taildesk/
 │   │                      # exit nodes, netcheck, updater helpers
 │   ├── src/embedded.rs    # Bundled client probe, guided sign-in, daemon self-heal
 │   ├── src/xfer.rs        # Taildrop: browse destinations, send files, progress events
-│   ├── src/rdp.rs         # Embedded IronRDP client + MJPEG streamer
+│   ├── src/rc.rs          # Screen sharing: consent popup, capture, input injection
 │   ├── windows/hooks.nsi  # NSIS hooks: install language, firewall rule,
 │   │                      # scheduled task running the bundled tailscaled at logon
 │   ├── tauri.conf.json    # Window, NSIS bundle, updater config
