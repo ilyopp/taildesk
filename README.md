@@ -9,14 +9,16 @@ network map, built-in RDP client, Taildrop & network diagnostics. Built with Rus
 
 - [Node.js](https://nodejs.org) (for the Tauri CLI) - `node -v`
 - [Rust](https://rustup.rs) - `cargo --version`
-- Tailscale installed and connected on the machine
 
-End users don't need any of these: the `Setup.exe` ships everything.
+End users don't need any of these: the `Setup.exe` ships everything, including
+the official Tailscale client (the app runs its own `tailscaled` from the
+install folder, no separate Tailscale install needed).
 
 ## Run in development
 
 ```bash
-npm install        # once
+npm install                      # once
+pwsh scripts/get-tailscale.ps1   # once: fetches the bundled Tailscale client into src-tauri/tailscale-bundle/
 npm run dev
 ```
 
@@ -34,7 +36,7 @@ npm run build
 
 Generated artifacts:
 
-- Windows installer: `src-tauri/target/release/bundle/nsis/Taildesk_0.2.1_x64-setup.exe`
+- Windows installer: `src-tauri/target/release/bundle/nsis/Taildesk_X.Y.Z_x64-setup.exe`
   (language picker EN/FR and install-directory page; the language chosen in the
   installer becomes the app's language on first launch)
 - Standalone executable: `src-tauri/target/release/taildesk.exe`
@@ -46,6 +48,7 @@ otherwise future auto-updates can't be signed.
 
 | Action | Detail |
 |---|---|
+| Guided sign-in | First launch shows a welcome screen: one click opens the Tailscale sign-in page in your browser, then the app switches to the dashboard once connected |
 | Status & ping | Tailnet device list, online/offline, latency through `tailscale ping` |
 | Network map | Animated graph: every device is an ember node linked to this PC; All/Online/Offline filter; drag nodes around, click a node copies its IP |
 | Copy IP | Click the IP chip (clipboard button, or click a map node) |
@@ -54,6 +57,8 @@ otherwise future auto-updates can't be signed.
 | Tailscale panel (settings button) | Connect/disconnect the tailnet (`tailscale up/down`), exit-node switch (`exit-node list` / `set --exit-node`), network diagnostics (`netcheck`: UDP, IPv4/IPv6, NAT, UPnP/PMP/PCP, DERP latencies), language, updates |
 | Device « ⋯ » menu | Remote desktop, Taildrop file transfer, copy MagicDNS name or IPv6 |
 | Built-in remote desktop | Full embedded RDP client (IronRDP): the remote screen renders inside the app with keyboard & mouse. Toggle in Panel → Settings; disabled it falls back to Windows mstsc |
+| Files (Taildrop) | Dedicated tab to send files to any device: drag & drop or « New transfer », progress list, clear finished transfers |
+| Always connected | The connection service runs unattended: the PC reconnects to the tailnet by itself at logon, and the app relaunches the service automatically if it stops responding |
 | Network switcher | Dropdown in Panel → Connection: lists the tailnets already signed in on this PC (`tailscale switch --list`) and switches between them instantly (`tailscale switch`). To add a network: sign in once from the Tailscale app or `tailscale login` |
 
 Data refreshes automatically every 10 seconds (no setting required).
@@ -78,6 +83,9 @@ Checks hit this repository's releases:
    `src-tauri/target/release/bundle/nsis/`; `latest.json` lists the version,
    release date, download URL and the signature contents.
 
+Staging copies of the installer, `.sig`, `latest.json` and release notes live
+in the gitignored `release/` folder.
+
 ### Built-in remote desktop notes
 
 - The target machine needs **Remote Desktop** enabled and an account protected
@@ -94,13 +102,18 @@ Taildesk/
 ├── ui/                    # Frontend (static HTML/CSS/JS)
 │   ├── index.html         # markup with data-i18n attributes
 │   ├── i18n.js            # EN/FR dictionary + helpers
-│   ├── main.js            # UI logic, canvas map, RDP viewer
+│   ├── main.js            # UI logic, canvas map, welcome flow, Taildrop & RDP viewer
 │   └── assets/logo.png
+├── scripts/
+│   └── get-tailscale.ps1  # fetches the official Tailscale client into src-tauri/tailscale-bundle/
 ├── src-tauri/
 │   ├── src/main.rs        # Commands: status, ping, ssh, browser, tailnet toggle,
-│   │                      # exit nodes, netcheck, taildrop, updater helpers
+│   │                      # exit nodes, netcheck, updater helpers
+│   ├── src/embedded.rs    # Bundled client probe, guided sign-in, daemon self-heal
+│   ├── src/xfer.rs        # Taildrop: browse destinations, send files, progress events
 │   ├── src/rdp.rs         # Embedded IronRDP client + MJPEG streamer
-│   ├── windows/hooks.nsi  # NSIS hook: stores the chosen install language
+│   ├── windows/hooks.nsi  # NSIS hooks: install language, firewall rule,
+│   │                      # scheduled task running the bundled tailscaled at logon
 │   ├── tauri.conf.json    # Window, NSIS bundle, updater config
 │   └── icons/
 └── package.json           # dev/build scripts (@tauri-apps/cli)
@@ -112,8 +125,11 @@ Taildesk/
   after the session started).
 - Close the running app before rebuilding, otherwise the linker fails with
   “Access denied (os error 5)”.
-- The backend locates the Tailscale CLI in `C:\Program Files\Tailscale\`
-  first, then falls back to `PATH`.
+- All Tailscale commands use the client bundled with the app (dev:
+  `src-tauri/tailscale-bundle/`, fetched by `scripts/get-tailscale.ps1`);
+  no system Tailscale install is used.
+- App and connection-service data live in `C:\ProgramData\Taildesk`;
+  uninstalling wipes them, so the next install asks for an account again.
 
 ## License
 

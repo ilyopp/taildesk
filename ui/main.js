@@ -53,6 +53,23 @@ const els = {
   rdpPass: document.getElementById("rdp-pass"),
   rdpErr: document.getElementById("rdp-err"),
   rdpImg: document.getElementById("rdp-img"),
+
+  viewFiles: document.getElementById("view-files"),
+  xfContent: document.getElementById("xfer-content"),
+  xfBadge: document.getElementById("xf-badge"),
+  btnNewSend: document.getElementById("btn-new-send"),
+  btnClearXfer: document.getElementById("btn-clear-xfer"),
+  optAutoAccept: document.getElementById("opt-auto-accept"),
+  xfDir: document.getElementById("xf-dir"),
+  btnPickDir: document.getElementById("btn-pick-dir"),
+  dropOverlay: document.getElementById("drop-overlay"),
+  destMenu: document.getElementById("dest-menu"),
+
+  welcome: document.getElementById("welcome"),
+  btnWelcomeLogin: document.getElementById("btn-welcome-login"),
+  btnWelcomeAuth: document.getElementById("btn-welcome-auth"),
+  welcomeStatus: document.getElementById("welcome-status"),
+  welcomeNote: document.getElementById("welcome-note"),
 };
 
 const ICONS = {
@@ -60,6 +77,7 @@ const ICONS = {
   browser: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14.5 14.5 0 0 1 0 18a14.5 14.5 0 0 1 0-18"/></svg>`,
   ssh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 9 12 5 16"/><path d="M12 17h7"/></svg>`,
   copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`,
+  folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
   more: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>`,
 };
 
@@ -192,7 +210,7 @@ function render(st) {
       setStatus("warn", t("conn.stopped"));
       showBanner(
         `${esc(t("banner.stopped"))} ` +
-        `<button class="banner-action" data-action="login">${esc(t("banner.consoleBtn"))}</button>`,
+        `<button class="banner-action" data-action="console">${esc(t("banner.consoleBtn"))}</button>`,
         false
       );
     } else {
@@ -298,6 +316,9 @@ els.content.addEventListener("click", async (ev) => {
         await invoke("open_ssh", { host: btn.dataset.value });
         break;
       case "login":
+        await invoke("ts_login");
+        break;
+      case "console":
         await invoke("open_browser", { url: "https://login.tailscale.com/admin/machines" });
         break;
       case "ping":
@@ -310,10 +331,14 @@ els.content.addEventListener("click", async (ev) => {
 });
 
 els.banner.addEventListener("click", async (ev) => {
-  const btn = ev.target.closest("[data-action=login]");
+  const btn = ev.target.closest("[data-action=login], [data-action=console]");
   if (!btn) return;
   try {
-    await invoke("open_browser", { url: "https://login.tailscale.com/admin/machines" });
+    if (btn.dataset.action === "login") {
+      await invoke("ts_login");
+    } else {
+      await invoke("open_browser", { url: "https://login.tailscale.com/admin/machines" });
+    }
   } catch (e) {
     toast(typeof e === "string" ? e : t("toast.failed"));
   }
@@ -715,14 +740,15 @@ els.netCanvas.addEventListener("pointerleave", () => {
 });
 
 function setView(name) {
-  const isNet = name === "net";
   for (const btn of document.querySelectorAll(".tab-btn")) {
     btn.classList.toggle("active", btn.dataset.view === name);
   }
-  els.viewList.classList.toggle("hidden", isNet);
-  els.viewNet.classList.toggle("hidden", !isNet);
-  if (isNet) startNet();
+  els.viewList.classList.toggle("hidden", name !== "list");
+  els.viewNet.classList.toggle("hidden", name !== "net");
+  els.viewFiles.classList.toggle("hidden", name !== "files");
+  if (name === "net") startNet();
   else stopNet();
+  if (name === "files") refreshXfers();
 }
 
 for (const btn of document.querySelectorAll(".tab-btn")) {
@@ -748,6 +774,446 @@ function findPeer(id) {
   return n ? n.peer : null;
 }
 
+const XF = { items: [] };
+
+function fmtBytes(n) {
+  if (!Number.isFinite(n) || n < 0) return "?";
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n;
+  let i = -1;
+  do {
+    v /= 1024;
+    i++;
+  } while (v >= 1024 && i < units.length - 1);
+  return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
+function fmtClock(ms) {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(langLocale(), { hour: "2-digit", minute: "2-digit" });
+}
+
+const XF_STATES = {
+  pending: "xf.stPending",
+  active: "xf.stActive",
+  done: "xf.stDone",
+  failed: "xf.stFailed",
+  refused: "xf.stRefused",
+};
+
+function xferCard(b) {
+  const total = b.files.length;
+  const names = b.files.map((f) => esc(f.name));
+  const title =
+    total === 1
+      ? names[0]
+      : `${t("xf.nFiles", { n: total })} · ${names.slice(0, 2).join(", ")}${total > 2 ? "…" : ""}`;
+  const size = b.files.reduce((a, f) => a + f.size, 0);
+  const sent = b.files.reduce((a, f) => a + f.sent, 0);
+  const pct = size ? Math.min(100, Math.round((sent * 100) / size)) : 0;
+  const clock = b.created ? fmtClock(b.created) : "";
+  const modeChip = `<span class="chip mode-chip">${esc(
+    b.mode === "taildrop" ? t("xf.modeTaildrop") : t("xf.modeDirect")
+  )}</span>`;
+  const stateChip = `<span class="chip st-${esc(b.state)}">${esc(t(XF_STATES[b.state] || "xf.stActive"))}</span>`;
+
+  let sub;
+  if (b.dir === "in" && b.state === "pending") {
+    sub = `<p class="m-sub xf-ask">${esc(t("xf.wants", { p: b.peer, n: total }))} · ${esc(fmtBytes(size))}</p>`;
+  } else {
+    sub = `<p class="m-sub">${esc(b.peer)}${clock ? ` · ${clock}` : ""} · ${esc(fmtBytes(size))}</p>`;
+  }
+
+  let bar = "";
+  if (b.state === "active") {
+    bar = `<div class="xf-bar"><i style="width:${pct}%"></i></div><p class="xf-meta">${esc(fmtBytes(sent))} / ${esc(fmtBytes(size))} · ${pct}%</p>`;
+  }
+  const errLine =
+    b.state === "failed" && b.error
+      ? `<p class="xf-err">${esc(b.error)}</p>`
+      : "";
+
+  let right = "";
+  if (b.dir === "in" && b.state === "pending") {
+    right =
+      `<button class="btn act-accept" data-xact="accept" data-id="${esc(b.id)}">${esc(t("xf.accept"))}</button>` +
+      `<button class="btn ghost act-refuse" data-xact="refuse" data-id="${esc(b.id)}">${esc(t("xf.refuse"))}</button>`;
+  } else if (b.dir === "in" && b.state === "done" && b.target) {
+    right =
+      `<button class="btn icon-only" data-xact="open" data-val="${esc(b.target)}" title="${esc(t("xf.openFolder"))}">${ICONS.folder}</button>`;
+  }
+
+  const dotCls =
+    b.state === "done"
+      ? "on"
+      : b.state === "failed"
+        ? "err"
+        : b.state === "refused"
+          ? "off"
+          : b.dir === "in" && b.state === "pending"
+            ? "warn"
+            : "on";
+
+  return `
+  <article class="machine xf st-${esc(b.state)}">
+    <span class="dot ${dotCls}"></span>
+    <div class="m-id">
+      <div class="m-name-row"><span class="m-name">${title}</span>${modeChip}${stateChip}</div>
+      ${sub}
+      ${bar}
+      ${errLine}
+    </div>
+    <div class="m-right">${right}</div>
+  </article>`;
+}
+
+function renderXfers() {
+  els.btnClearXfer.classList.toggle(
+    "hidden",
+    !XF.items.some((b) => b.state !== "pending" && b.state !== "active")
+  );
+  if (!XF.items.length) {
+    els.xfContent.innerHTML =
+      '<div class="wrap"><div class="empty"><img src="assets/logo.png" alt="">' +
+      `<p>${esc(t("xf.emptyAll"))}</p><small>${esc(t("xf.emptySub"))}</small></div></div>`;
+    return;
+  }
+  const ins = XF.items.filter((b) => b.dir === "in");
+  const outs = XF.items.filter((b) => b.dir === "out");
+  let html = '<div class="wrap">';
+  if (ins.length)
+    html += `<p class="group-label">${esc(t("xf.inbox"))}<span class="count">${ins.length}</span></p>` +
+      ins.map(xferCard).join("");
+  if (outs.length)
+    html += `<p class="group-label">${esc(t("xf.outbox"))}<span class="count">${outs.length}</span></p>` +
+      outs.map(xferCard).join("");
+  html += "</div>";
+  els.xfContent.innerHTML = html;
+}
+
+function updateXfBadge() {
+  const n = XF.items.filter((b) => b.dir === "in" && b.state === "pending").length;
+  els.xfBadge.textContent = n > 9 ? "9+" : String(n);
+  els.xfBadge.classList.toggle("hidden", !n);
+}
+
+async function refreshXfers() {
+  if (!invoke) return;
+  try {
+    XF.items = (await invoke("xfer_state")) || [];
+  } catch {
+    XF.items = [];
+  }
+  renderXfers();
+  updateXfBadge();
+}
+
+async function sendTo(peer, paths) {
+  const host = peer.dns_name || peer.hostname || peer.ipv4;
+  const ip = peer.ipv4 || peer.ipv6 || "";
+  try {
+    await invoke("xfer_send", { host, ip, paths });
+    toast(t("toast.sending", { h: host }));
+    setView("files");
+  } catch (e) {
+    toast(typeof e === "string" ? e : t("toast.failed"), 6000);
+  }
+}
+
+els.xfContent.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-xact]");
+  if (!btn) return;
+  const act = btn.dataset.xact;
+  try {
+    if (act === "accept" || act === "refuse") {
+      await invoke("xfer_decide", { id: btn.dataset.id, accept: act === "accept" });
+    } else if (act === "open") {
+      await invoke("xfer_open_dir", { dir: btn.dataset.val });
+    }
+  } catch (e) {
+    toast(typeof e === "string" ? e : t("toast.failed"));
+  }
+});
+
+els.btnClearXfer.addEventListener("click", async () => {
+  try {
+    await invoke("xfer_clear_history");
+  } catch (e) {
+    toast(typeof e === "string" ? e : t("toast.failed"));
+  }
+});
+
+let destCb = null;
+
+function closeDestMenu() {
+  els.destMenu.classList.add("hidden");
+  destCb = null;
+}
+
+function openDestPicker(cb) {
+  const peers = ((lastStatus && lastStatus.peers) || []).filter(
+    (p) => p.online && (p.ipv4 || p.dns_name)
+  );
+  els.destMenu.querySelector(".dm-title").textContent = t("xf.chooseDest");
+  const list = els.destMenu.querySelector(".dm-list");
+  if (!peers.length) {
+    list.innerHTML = `<p class="hint dm-none">${esc(t("xf.noneOnline"))}</p>`;
+  } else {
+    list.innerHTML = peers
+      .map(
+        (p, i) =>
+          `<button class="rm-item" data-i="${i}">${esc(p.hostname || p.dns_name)}` +
+          `<span class="dm-ip">${esc(p.ipv4 || "")}</span></button>`
+      )
+      .join("");
+  }
+  els.destMenu._peers = peers;
+  destCb = cb;
+  els.destMenu.classList.remove("hidden");
+}
+
+els.destMenu.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-i]");
+  const peers = els.destMenu._peers || [];
+  if (!btn) {
+    closeDestMenu();
+    return;
+  }
+  const p = peers[Number(btn.dataset.i)];
+  const cb = destCb;
+  closeDestMenu();
+  if (p && cb) cb(p);
+});
+
+els.btnNewSend.addEventListener("click", () => {
+  openDestPicker((p) => {
+    invoke("pick_files").then((paths) => {
+      if (paths && paths.length) sendTo(p, paths);
+    });
+  });
+});
+
+if (Tauri && Tauri.event) {
+  Tauri.event.listen("xfer-update", (ev) => {
+    const p = ev.payload || {};
+    XF.items = p.items || [];
+    renderXfers();
+    updateXfBadge();
+  });
+}
+
+const DROP = { depth: 0, paths: [] };
+
+function dropOverlay(show) {
+  els.dropOverlay.classList.toggle("hidden", !show);
+}
+
+function initDragDrop() {
+  try {
+    const wv =
+      Tauri && Tauri.webview && Tauri.webview.getCurrentWebview
+        ? Tauri.webview.getCurrentWebview()
+        : null;
+    if (!wv || !wv.onDragDropEvent) return;
+    wv.onDragDropEvent((ev) => {
+      const p = ev.payload || {};
+      const type = p.type || "";
+      if (type === "enter") {
+        DROP.depth++;
+        dropOverlay(true);
+      } else if (type === "drop") {
+        DROP.depth = 0;
+        dropOverlay(false);
+        if (p.paths && p.paths.length) {
+          DROP.paths = p.paths;
+          openDestPicker((peer) => {
+            const paths = DROP.paths.slice();
+            DROP.paths = [];
+            sendTo(peer, paths);
+          });
+        }
+      } else if (type === "leave") {
+        DROP.depth = Math.max(0, DROP.depth - 1);
+        if (!DROP.depth) dropOverlay(false);
+      }
+    });
+  } catch {}
+}
+
+function autoAcceptOn() {
+  return localStorage.getItem("bc_xfer_auto") === "1";
+}
+
+function recvDirStored() {
+  return localStorage.getItem("bc_xfer_dir") || "";
+}
+
+function pushXferPrefs() {
+  if (invoke) invoke("xfer_prefs", { autoAccept: autoAcceptOn(), dir: recvDirStored() }).catch(() => {});
+}
+
+function updateRecvDirLabel() {
+  els.xfDir.textContent = recvDirStored() || t("xf.dirDefault");
+}
+
+els.optAutoAccept.checked = autoAcceptOn();
+els.optAutoAccept.addEventListener("change", () => {
+  localStorage.setItem("bc_xfer_auto", els.optAutoAccept.checked ? "1" : "0");
+  pushXferPrefs();
+});
+
+els.btnPickDir.addEventListener("click", async () => {
+  if (!invoke) return;
+  try {
+    const d = await invoke("pick_dir");
+    if (!d) return;
+    localStorage.setItem("bc_xfer_dir", d);
+    updateRecvDirLabel();
+    pushXferPrefs();
+  } catch {}
+});
+
+const WELCOME = { busy: false, retry: 0, url: "" };
+
+function showWelcome() {
+  els.welcome.classList.remove("hidden");
+}
+
+function hideWelcome() {
+  clearTimeout(WELCOME.retry);
+  els.welcome.classList.add("hidden");
+}
+
+function setWelcomeStatus(text, cls) {
+  els.welcomeStatus.textContent = text || "";
+  els.welcomeStatus.className = cls || "";
+}
+
+function welcomeShowAuth(show) {
+  els.btnWelcomeAuth.classList.toggle("hidden", !show);
+}
+
+function welcomeShowLogin(show) {
+  els.btnWelcomeLogin.classList.toggle("hidden", !show);
+}
+
+function welcomeServiceDown() {
+  welcomeShowLogin(false);
+  welcomeShowAuth(false);
+  els.welcomeNote.textContent = t("welcome.fixHint");
+  setWelcomeStatus(t("welcome.serviceDown"), "");
+}
+
+async function probeWelcome() {
+  if (!invoke) return;
+  let probe = null;
+  try {
+    probe = await invoke("ts_probe");
+  } catch {}
+  if (!probe || !probe.available) {
+    welcomeServiceDown();
+    clearTimeout(WELCOME.retry);
+    WELCOME.retry = setTimeout(() => {
+      if (!els.welcome.classList.contains("hidden")) probeWelcome();
+    }, 3000);
+    return;
+  }
+  els.welcomeNote.textContent = probe.version
+    ? t("welcome.note", { v: probe.version })
+    : "";
+  const st = probe.backend_state || "";
+  if (st === "Running" || st === "Stopped") {
+    hideWelcome();
+    refresh();
+    return;
+  }
+  welcomeShowAuth(false);
+  setWelcomeStatus("", "");
+  welcomeShowLogin(true);
+}
+
+async function initWelcome() {
+  if (!invoke) return;
+  let probe = null;
+  try {
+    probe = await invoke("ts_probe");
+  } catch {}
+  const st = probe && probe.available ? probe.backend_state || "" : "";
+  if (!probe || !probe.available || (st !== "Running" && st !== "Stopped")) {
+    showWelcome();
+    await probeWelcome();
+  }
+}
+
+const WELCOME_ERRORS = {
+  timeout: "welcome.errTimeout",
+  daemonLost: "welcome.errDaemon",
+};
+
+if (Tauri && Tauri.event) {
+  Tauri.event.listen("welcome-status", (ev) => {
+    const p = ev.payload || {};
+    const stage = String(p.stage || "");
+    if (stage === "authurl") {
+      // Le navigateur ne s'ouvre jamais tout seul : on affiche le lien,
+      // même si l'écran d'accueil avait été fermé (connexion via bannière).
+      if (!p.url) return;
+      WELCOME.url = String(p.url);
+      showWelcome();
+      setWelcomeStatus(t("welcome.authReady"), "");
+      welcomeShowAuth(true);
+      return;
+    }
+    if (els.welcome.classList.contains("hidden")) return;
+    if (stage === "error") {
+      const key = WELCOME_ERRORS[p.message];
+      setWelcomeStatus(key ? t(key) : String(p.message || ""), "welcome-err");
+      WELCOME.busy = false;
+      welcomeShowLogin(true);
+      welcomeShowAuth(false);
+      return;
+    }
+    if (stage === "login") {
+      welcomeShowLogin(false);
+      welcomeShowAuth(false);
+      setWelcomeStatus(t("welcome.login"), "");
+    } else if (stage === "connected") {
+      setWelcomeStatus(t("welcome.connected"), "welcome-ok");
+      setTimeout(() => {
+        hideWelcome();
+        refresh();
+        toast(t("welcome.connected"));
+      }, 900);
+    }
+  });
+}
+
+els.btnWelcomeLogin.addEventListener("click", async () => {
+  if (WELCOME.busy) return;
+  WELCOME.busy = true;
+  welcomeShowAuth(false);
+  setWelcomeStatus(t("welcome.login"), "");
+  try {
+    await invoke("ts_login");
+  } catch (e) {
+    setWelcomeStatus(
+      typeof e === "string" ? e : t("welcome.errLogin"),
+      "welcome-err"
+    );
+    WELCOME.busy = false;
+  }
+});
+
+els.btnWelcomeAuth.addEventListener("click", async () => {
+  if (!WELCOME.url || !invoke) return;
+  try {
+    await invoke("open_browser", { url: WELCOME.url });
+    toast(t("toast.browser"));
+  } catch {}
+});
+
 function hideRowMenu() {
   els.rowMenu.classList.add("hidden");
 }
@@ -769,7 +1235,7 @@ function openRowMenu(btn) {
       val: p.ipv4 || p.ipv6,
     });
   items.push({ sep: true });
-  items.push({ label: t("menu.taildrop"), act: "taildrop", val: card.dataset.id });
+  items.push({ label: t("menu.send"), act: "send", val: card.dataset.id });
 
   els.rowMenu.innerHTML = items
     .map((it, i) =>
@@ -806,15 +1272,12 @@ els.rowMenu.addEventListener("click", async (ev) => {
         toast(t("menu.rdpOpenWin"));
         await invoke("open_rdp", { ip: item.val });
       }
-    } else if (item.act === "taildrop") {
+    } else if (item.act === "send") {
       const p = findPeer(item.val);
-      const host = p ? p.dns_name || p.ipv4 : null;
-      if (!host) return;
-      const path = await invoke("pick_file");
-      if (!path) return;
-      toast(t("taildrop.sending", { h: host }));
-      await invoke("taildrop_send", { host, path });
-      toast(t("taildrop.sent", { h: host }));
+      if (!p) return;
+      const paths = await invoke("pick_files");
+      if (!paths || !paths.length) return;
+      await sendTo(p, paths);
     }
   } catch (e) {
     toast(typeof e === "string" ? e : t("toast.failed"));
@@ -826,6 +1289,9 @@ document.addEventListener("pointerdown", (ev) => {
     if (!els.rowMenu.contains(ev.target) && !ev.target.closest('[data-action="more"]')) {
       hideRowMenu();
     }
+  }
+  if (!els.destMenu.classList.contains("hidden") && !els.destMenu.contains(ev.target)) {
+    closeDestMenu();
   }
 });
 
@@ -971,6 +1437,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closePanel();
     hideRowMenu();
+    closeDestMenu();
   }
 });
 
@@ -1355,7 +1822,12 @@ document.addEventListener("visibilitychange", () => {
   }
 
   loadProfiles();
+  initWelcome();
   await refresh();
+  await refreshXfers();
+  initDragDrop();
+  updateRecvDirLabel();
+  pushXferPrefs();
 
   if (updatesEnabled() && invoke) {
     checkUpdates(false);

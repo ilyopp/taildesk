@@ -1,6 +1,6 @@
 [package]
 name = "taildesk"
-version = "0.2.2"
+version = "0.3.0"
 description = "Tableau de bord Tailscale - Taildesk"
 edition = "2021"
 
@@ -19,6 +19,7 @@ sspi = { version = "0.21.3", features = ["network_client"] }
 rfd = "0.15"
 ironrdp = { version = "0.17.0", features = ["connector", "session", "graphics"] }
 tauri-plugin-updater = "2.10.1"
+parking_lot = "0.12"
 
 [profile.release]
 strip = true

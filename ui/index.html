@@ -22,6 +22,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="0.5" fill="currentColor"/><circle cx="4" cy="12" r="0.5" fill="currentColor"/><circle cx="4" cy="18" r="0.5" fill="currentColor"/></svg>
             <span data-i18n="nav.list">List</span>
           </button>
+          <button class="tab-btn" data-view="files" title="File transfers">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span data-i18n="nav.files">Files</span>
+            <span id="xf-badge" class="tab-badge hidden"></span>
+          </button>
           <button class="tab-btn" data-view="net" title="Map view">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="5" r="1.7"/><circle cx="19" cy="5" r="1.7"/><circle cx="5" cy="19" r="1.7"/><circle cx="19" cy="19" r="1.7"/><path d="M6.3 6.3 10 10m7.7-3.7L14 10M6.3 17.7 10 14m7.7 3.7L14 14"/></svg>
             <span data-i18n="nav.map">Map</span>
@@ -63,6 +68,21 @@
         <img src="assets/logo.png" alt="">
         <p data-i18n="net.empty">No devices to show on the map.</p>
       </div>
+    </section>
+
+    <section id="view-files" class="hidden">
+      <div class="toolbar files-toolbar">
+        <h2 class="files-title" data-i18n="nav.files">Files</h2>
+        <span class="files-spacer"></span>
+        <button id="btn-clear-xfer" class="btn ghost icon-only hidden" data-i18n-title="xf.clear" title="Clear finished transfers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        </button>
+        <button id="btn-new-send" class="btn new-send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+          <span data-i18n="xf.newSend">New transfer</span>
+        </button>
+      </div>
+      <main id="xfer-content"></main>
     </section>
 
     <footer class="statusbar">
@@ -123,6 +143,20 @@
         <span data-i18n="set.embeddedRdp">Built-in remote desktop (in-app)</span>
       </label>
       <p class="hint" data-i18n="set.rdpHint">Disabled: opens the Windows Remote Desktop client (mstsc).</p>
+      <label class="check-row">
+        <input type="checkbox" id="opt-auto-accept" />
+        <span data-i18n="xf.autoAccept">Automatically accept incoming files</span>
+      </label>
+      <p class="hint" data-i18n="xf.autoAcceptHint">Files are saved without asking, from any tailnet device.</p>
+      <div class="set-row">
+        <span class="set-label" data-i18n="xf.recvDir">Reception folder</span>
+        <div class="dir-row">
+          <code id="xf-dir"></code>
+          <button id="btn-pick-dir" class="btn ghost icon-only" data-i18n-title="xf.changeDir" title="Change">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </button>
+        </div>
+      </div>
     </section>
 
     <section class="panel-sec">
@@ -143,7 +177,37 @@
     </section>
   </aside>
 
+  <div id="welcome" class="welcome hidden">
+    <div class="welcome-card">
+      <img src="assets/logo.png" alt="" class="welcome-logo" draggable="false" />
+      <h1 data-i18n="welcome.title">Welcome to Taildesk</h1>
+      <p class="welcome-sub" data-i18n="welcome.sub">Connect this PC to your tailnet with your Tailscale account.</p>
+      <button id="btn-welcome-login" class="btn welcome-btn hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14.5 14.5 0 0 1 0 18a14.5 14.5 0 0 1 0-18"/></svg>
+        <span data-i18n="welcome.loginBtn">Log in</span>
+      </button>
+      <p id="welcome-status"></p>
+      <button id="btn-welcome-auth" class="btn welcome-btn w-auth hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span data-i18n="welcome.authBtn">Open Tailscale sign-in page</span>
+      </button>
+      <p class="hint welcome-note" id="welcome-note"></p>
+    </div>
+  </div>
+
   <div id="row-menu" class="row-menu hidden"></div>
+
+  <div id="dest-menu" class="row-menu dest-menu hidden">
+    <p class="dm-title"></p>
+    <div class="dm-list"></div>
+  </div>
+
+  <div id="drop-overlay" class="drop-overlay hidden">
+    <div class="drop-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg>
+      <p data-i18n="xf.dropHere">Drop your files to send them</p>
+    </div>
+  </div>
 
   <div id="rdp" class="rdp hidden">
     <div class="rdp-top">

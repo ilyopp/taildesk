@@ -10,10 +10,12 @@ use std::sync::{OnceLock, Mutex as StdMutex};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
 
+mod embedded;
 mod rdp;
+mod xfer;
 
 #[tauri::command]
 fn get_default_lang() -> Result<String, String> {
@@ -67,37 +69,20 @@ async fn updater_install(app: tauri::AppHandle) -> Result<(), String> {
 
 fn tailscale_bin() -> &'static Option<PathBuf> {
     static TS: OnceLock<Option<PathBuf>> = OnceLock::new();
-    TS.get_or_init(|| {
-        for p in [
-            r"C:\Program Files\Tailscale\tailscale.exe",
-            r"C:\Program Files (x86)\Tailscale\tailscale.exe",
-        ] {
-            let pb = PathBuf::from(p);
-            if pb.exists() {
-                return Some(pb);
-            }
-        }
-
-        let mut probe = Command::new("tailscale");
-        probe.arg("version");
-        #[cfg(windows)]
-        probe.creation_flags(CREATE_NO_WINDOW);
-        if probe.output().map(|o| o.status.success()).unwrap_or(false) {
-            return Some(PathBuf::from("tailscale"));
-        }
-        None
-    })
+    TS.get_or_init(embedded::bundled_cli)
 }
 
 fn ts_command() -> Result<Command, String> {
     match tailscale_bin() {
         Some(p) => {
-            let mut c = Command::new(p);
+            // Socket par défaut : en mode service Windows, tailscaled n'applique
+            // pas --socket à l'écoute après son re-exec enfant (/subproc).
+            let mut c = Command::new(&p);
             #[cfg(windows)]
             c.creation_flags(CREATE_NO_WINDOW);
             Ok(c)
         }
-        None => Err("Tailscale est introuvable sur cette machine.".into()),
+        None => Err("Binaires Taildesk introuvables, réinstalle l'application.".into()),
     }
 }
 
@@ -202,9 +187,9 @@ impl From<&TsPeer> for PeerVm {
 }
 
 fn local_status() -> Result<StatusVm, String> {
-    let out = ts_command()?
-        .args(["status", "--json"])
-        .output()
+    let mut cmd = ts_command()?;
+    cmd.args(["status", "--json"]);
+    let out = embedded::run_output_timeout(&mut cmd, 8)
         .map_err(|e| format!("Impossible d'exécuter tailscale : {e}"))?;
 
     if !out.status.success() {
@@ -251,9 +236,15 @@ fn local_status() -> Result<StatusVm, String> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_status() -> Result<StatusVm, String> {
-    local_status()
+    let st = local_status()?;
+    if let Some(me) = &st.self_device {
+        if !me.ipv4.is_empty() {
+            xfer::ensure_server(&me.ipv4);
+        }
+    }
+    Ok(st)
 }
 
 #[derive(Deserialize)]
@@ -274,11 +265,11 @@ struct ProfileVm {
     current: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_profiles() -> Result<Vec<ProfileVm>, String> {
-    let out = ts_command()?
-        .args(["switch", "--list", "--json"])
-        .output()
+    let mut cmd = ts_command()?;
+    cmd.args(["switch", "--list", "--json"]);
+    let out = embedded::run_output_timeout(&mut cmd, 6)
         .map_err(|e| format!("Commande impossible : {e}"))?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
@@ -295,7 +286,7 @@ fn list_profiles() -> Result<Vec<ProfileVm>, String> {
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn switch_profile(id: String) -> Result<(), String> {
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric()) {
         return Err("Identifiant de réseau invalide.".into());
@@ -310,7 +301,7 @@ fn switch_profile(id: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn ping_peer(ip: String) -> Result<String, String> {
     if !is_safe_host(&ip) {
         return Err("Adresse invalide.".into());
@@ -394,7 +385,7 @@ fn open_browser(url: String) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn toggle_tailscale(up: bool) -> Result<(), String> {
     let out = ts_command()?
         .args(if up { ["up"] } else { ["down"] })
@@ -413,7 +404,7 @@ struct ExitNodeVm {
     location: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_exit_nodes() -> Result<Vec<ExitNodeVm>, String> {
     let out = ts_command()?
         .args(["exit-node", "list"])
@@ -452,7 +443,7 @@ fn list_exit_nodes() -> Result<Vec<ExitNodeVm>, String> {
     Ok(nodes)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn set_exit_node(node: String) -> Result<(), String> {
     let arg = format!("--exit-node={node}");
     let out = ts_command()?
@@ -495,7 +486,7 @@ fn parse_bool(v: &str) -> Option<bool> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn netcheck() -> Result<NetcheckVm, String> {
     let out = ts_command()?
         .arg("netcheck")
@@ -580,35 +571,47 @@ fn netcheck() -> Result<NetcheckVm, String> {
 }
 
 #[tauri::command]
-fn pick_file() -> Result<Option<String>, String> {
+fn pick_files() -> Result<Vec<String>, String> {
     Ok(rfd::FileDialog::new()
-        .set_title("Choisir un fichier à envoyer")
-        .pick_file()
-        .map(|p| p.display().to_string()))
+        .set_title("Choisir des fichiers à envoyer")
+        .pick_files()
+        .map(|list| list.iter().map(|p| p.display().to_string()).collect())
+        .unwrap_or_default())
 }
 
 #[tauri::command]
-fn taildrop_send(host: String, path: String) -> Result<String, String> {
-    if !is_safe_host(&host) {
+fn pick_dir() -> Result<Option<String>, String> {
+    Ok(rfd::FileDialog::new()
+        .set_title("Choisir un dossier de réception")
+        .pick_folder()
+        .map(|p| p.display().to_string()))
+}
+
+pub(crate) fn taildrop_copy(host: &str, path: &str) -> Result<(), String> {
+    if !is_safe_host(host) {
         return Err("Hôte invalide.".into());
     }
-    if path.is_empty() || !std::path::Path::new(&path).exists() {
+    if path.is_empty() || !std::path::Path::new(path).exists() {
         return Err("Fichier introuvable.".into());
     }
     let target = format!("{host}:");
     let out = ts_command()?
-        .args(["file", "cp", &path, &target])
+        .args(["file", "cp", path, &target])
         .output()
         .map_err(|e| format!("Envoi impossible : {e}"))?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
-    Ok(format!("Fichier envoyé à {host}"))
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            xfer::init(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_status,
             ping_peer,
@@ -619,8 +622,14 @@ fn main() {
             list_exit_nodes,
             set_exit_node,
             netcheck,
-            pick_file,
-            taildrop_send,
+            pick_files,
+            pick_dir,
+            xfer::xfer_state,
+            xfer::xfer_send,
+            xfer::xfer_decide,
+            xfer::xfer_prefs,
+            xfer::xfer_open_dir,
+            xfer::xfer_clear_history,
             list_profiles,
             switch_profile,
             rdp::rdp_start,
@@ -628,7 +637,9 @@ fn main() {
             rdp::rdp_input,
             get_default_lang,
             updater_check,
-            updater_install
+            updater_install,
+            embedded::ts_probe,
+            embedded::ts_login
         ])
         .run(tauri::generate_context!())
         .expect("Erreur au lancement de Taildesk");

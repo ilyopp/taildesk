@@ -5,3 +5,4 @@ dist/
 *.log
 /latest.json
 /release/
+src-tauri/tailscale-bundle/

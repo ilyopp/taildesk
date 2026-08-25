@@ -5311,11 +5311,12 @@ dependencies = [
 
 [[package]]
 name = "taildesk"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "ironrdp",
  "ironrdp-blocking",
  "jpeg-encoder",
+ "parking_lot",
  "rfd",
  "serde",
  "serde_json",
